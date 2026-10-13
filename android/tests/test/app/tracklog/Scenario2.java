@@ -52,6 +52,8 @@ final class Scenario2 {
             for (long ms : new long[]{now, now + 1000L}) {      // the Recorder names the file after the current second
                 String stamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date(ms));
                 Files.createSymbolicLink(new File(ext, "session_" + stamp + ".csv").toPath(), Paths.get("/dev/full"));
+                // 1.4 never reuses a name that exists (it tries ...b.csv, ...c.csv), so every name it could pick is a link to /dev/full
+                for (char c = 'b'; c <= 'z'; c++) Files.createSymbolicLink(new File(ext, "session_" + stamp + c + ".csv").toPath(), Paths.get("/dev/full"));
             }
         }
         boolean started = rec.start();

@@ -52,6 +52,11 @@ def _nums(parts):
     return v
 
 
+# Events whose values are words, not numbers (1.4 stage rows). Every other event keeps numeric values; a row of that kind that does not
+# parse is counted in D["bad"] and dropped, as before.
+TEXT_EVENTS = ("STAGE", "STAGE_DNF", "STAGE_ABORT")
+
+
 def load_session(path):
     """Parse the CSV written by the app. Tolerates a truncated last line and unknown rows."""
     meta = []
@@ -77,7 +82,12 @@ def load_session(path):
                 elif k == "S" and len(p) == 4:
                     S.append(_nums(p[1:]))
                 elif k == "E" and len(p) >= 3:
-                    E.append((_nums(p[1:2])[0] * 1e-6, p[2], _nums(p[3:])))
+                    te = _nums(p[1:2])[0] * 1e-6
+                    if p[2] in TEXT_EVENTS:
+                        vals = [x.strip() for x in p[3:]]        # words (a stage id, a reason), kept as text
+                    else:
+                        vals = _nums(p[3:])
+                    E.append((te, p[2], vals))
                 elif k == "K" and len(p) == 4:
                     K.append((_nums(p[1:2])[0] * 1e-6, p[2], _nums(p[3:4])[0]))
                 else:

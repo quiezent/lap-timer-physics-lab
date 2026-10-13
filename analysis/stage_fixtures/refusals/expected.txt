@@ -1,0 +1,5 @@
+# the drive in each file cannot make a stage; the reason, as a code
+fewfixes.csv too_few_fixes
+loop.csv loop
+nomove.csv no_movement
+short.csv route_too_short

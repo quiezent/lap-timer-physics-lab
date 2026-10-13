@@ -45,6 +45,11 @@ import java.util.Locale;
  *        CALFAIL                                      too little accelerometer data to calibrate
  *        LAP,n,seconds                                the car passed the timing line (LapTimer): lap n took this long;
  *                                                     n = 0 is the first pass, which only starts the clock
+ *        STAGE,id                                     this recording is a run of the stage with this id
+ *        STAGE_START                                  the car crossed the stage's start line (t = the interpolated moment)
+ *        STAGE_FINISH,seconds                         ... its finish line; the stage took this long
+ *        STAGE_DNF,reason / STAGE_ABORT,reason        the run did not finish / never started
+ *        MARK_START,lat,lon,acc / MARK_FINISH,lat,lon,acc   the driver parked and marked the start / finish of a new stage
  *        STOP                                         always the last row
  *   K,t_us,A|G,lag_ms                                 clock check: arrival time minus event time
  *
@@ -105,6 +110,8 @@ final class Recorder implements SensorEventListener, LocationListener {
     private boolean started, stopped;     // guarded by lock; a Recorder is used once
     private GnssStatus.Callback gnssCb;
     private LapTimer lap;             // sensor thread only; null until start()
+    private volatile StageSink stageSink;   // the stage feature (StageSession / MarkSession), null for an ordinary recording
+    private volatile long startUtcMs;       // wall clock at START, for dating stage runs
 
     // per-second rate counters (sensor thread only)
     private long cntA, cntG, cntL, rateT0;
@@ -125,6 +132,53 @@ final class Recorder implements SensorEventListener, LocationListener {
 
     File getFile() {
         return file;
+    }
+
+    /** Wall-clock milliseconds at START (the header's start_utc_ms); 0 before start(). */
+    long startUtcMs() {
+        return startUtcMs;
+    }
+
+    /**
+     * Hands the recording to the stage feature: every GPS fix, a tick every second, and the stop are passed to it, and it can write
+     * event rows. Call before start(). The calls are wrapped in try/catch: a fault in the stage code cannot disturb the recording.
+     */
+    void setStageSink(StageSink s) {
+        stageSink = s;
+        if (s != null) {
+            try {
+                s.attach(stageOut);
+            } catch (RuntimeException ignored) {
+            }
+        }
+    }
+
+    /** The stage feature's way to write E rows and to read the recording clock (seconds since START). */
+    private final StageSink.Out stageOut = new StageSink.Out() {
+        @Override
+        public void event(double tS, String text) {
+            emit("E," + Math.round(tS * 1e6) + "," + text);
+        }
+
+        @Override
+        public double now() {
+            return usSince(SystemClock.elapsedRealtimeNanos()) / 1e6;
+        }
+    };
+
+    /**
+     * Passes a GPS fix that arrived before the recording started (the stage watcher's last fixes) to the recorder as if it had arrived
+     * on its sensor thread. A fix more than 2 s older than START is dropped, like any stale fix. Safe to call from any thread.
+     */
+    void injectLocation(final Location l) {
+        final Handler h = handler;
+        if (h == null || l == null) return;
+        h.post(new Runnable() {
+            @Override
+            public void run() {
+                if (running) onLocationChanged(l);
+            }
+        });
     }
 
     boolean start() {
@@ -158,6 +212,8 @@ final class Recorder implements SensorEventListener, LocationListener {
                 dir.mkdirs();
                 String stamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
                 file = new File(dir, "session_" + stamp + ".csv");
+                // two recordings can start within one second now (a stage run that ends, a car that triggers again): never overwrite
+                for (char c = 'b'; file.exists() && c <= 'z'; c++) file = new File(dir, "session_" + stamp + c + ".csv");
                 out = new BufferedOutputStream(new FileOutputStream(file), 1 << 16);
             } catch (Exception e) {
                 LIVE.error = "Cannot create file: " + e.getMessage();
@@ -189,10 +245,11 @@ final class Recorder implements SensorEventListener, LocationListener {
 
             try {
                 StringBuilder h = new StringBuilder(1024);
-                h.append("# TrackLogger 1.3 (raw phone-frame log; process offline with analyze.py)\n");
+                h.append("# TrackLogger 1.4 (raw phone-frame log; process offline with analyze.py)\n");
                 h.append("# device,").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append('\n');
                 h.append("# android,").append(Build.VERSION.RELEASE).append(",sdk,").append(Build.VERSION.SDK_INT).append('\n');
-                h.append("# start_utc_ms,").append(System.currentTimeMillis()).append('\n');
+                startUtcMs = System.currentTimeMillis();
+                h.append("# start_utc_ms,").append(startUtcMs).append('\n');
                 h.append("# start_elapsed_ns,").append(t0ns).append('\n');
                 h.append("# accel,").append(describe(acc)).append('\n');
                 h.append("# gyro,").append(describe(gyr)).append('\n');
@@ -262,6 +319,19 @@ final class Recorder implements SensorEventListener, LocationListener {
      * clears 'running', so it must not be the test here: the sensors, thread and file are still held).
      */
     void stop() {
+        final StageSink ss = stageSink;
+        if (ss != null) {
+            boolean open;
+            synchronized (lock) {
+                open = started && !stopped;
+            }
+            if (open) {                                  // closes an open stage run: its row must come before STOP
+                try {
+                    ss.onStop(usSince(SystemClock.elapsedRealtimeNanos()) / 1e6, stageOut);
+                } catch (RuntimeException ignored) {
+                }
+            }
+        }
         synchronized (lock) {
             if (!started || stopped) return;
             stopped = true;
@@ -312,6 +382,13 @@ final class Recorder implements SensorEventListener, LocationListener {
                 LIVE.bytes = bytes;
             }
             if (LIVE.haveFix && (now - LIVE.lastFixElapsedNs) > 3000000000L) LIVE.haveFix = false;
+            final StageSink ss = stageSink;
+            if (ss != null) {
+                try {
+                    ss.onTick(usSince(now) / 1e6, stageOut);
+                } catch (RuntimeException ignored) {
+                }
+            }
             Handler h = handler;
             if (h != null && running) h.postDelayed(this, 1000);
         }
@@ -454,6 +531,20 @@ final class Recorder implements SensorEventListener, LocationListener {
             }
         } catch (RuntimeException ignored) {
         }
+        final StageSink ss = stageSink;
+        if (ss != null) {                                // the stage feature gets the fix exactly as the file has it
+            try {
+                ss.onFix(new Fix(usSince(fixNs) / 1e6, l.getLatitude(), l.getLongitude(),
+                        l.hasSpeed() ? logged(l.getSpeed()) : -1.0, l.hasBearing() ? logged(l.getBearing()) : -1.0,
+                        l.hasAccuracy() ? logged(l.getAccuracy()) : -1.0), stageOut);
+            } catch (RuntimeException ignored) {
+            }
+        }
+    }
+
+    /** A float as the file prints it, read back as a double: what a later scoring of the file will see. */
+    private static double logged(float v) {
+        return Double.parseDouble(Float.toString(v));
     }
 
     /** The line was crossed: update the screen and leave a row in the log (E,t_us,LAP,n,seconds; n = 0 starts the clock). */

@@ -18,66 +18,30 @@ Start in [`../ios/`](../ios). Please share a first real file early: the checks i
 
 ## 2. Rally and road stages: start and finish GPS points
 
-Today's timer is for laps: one built-in line, laps timed between two passes of the same line. A stage is point-to-point: it starts at one place and ends at another, and the time is the difference.
-The owner wants to add these, with the start and finish given as GPS points. Here is how I would do it, and why it is different from laps.
+**Built in release 1.4** (open roads, limited by design; the plain-words guide is [`stages.md`](stages.md), the exact method is [`stage-algorithm.md`](stage-algorithm.md), the files are [`stage-format.md`](stage-format.md)).
+What is done: marking a start and a finish by driving the road once; arming a stage so the recording starts and stops at the lines by itself; saving every drive as a run; comparing runs of the same stage (best, previous, first), with a graph and sections; scoring recordings made before the stage existed;
+backup and restore of stages; the rules for open roads (no times or differences on screen while the car moves; one beep at the start line, two at the finish line, a low tone if a run is given up; a first-use text about road rules).
+It does not use the course file sketched here earlier: a stage is a text file made on the phone from the marking drive ([`stage-format.md`](stage-format.md)), which turned out to be what the driver needed (no map, no typing of coordinates).
 
-**Use.** Closed-road rally stages, hill climbs, time attacks and other permitted events, and test days on closed roads. Not open public roads: timing yourself on a public road invites speeding, and the project is not for that.
-
-### The course file
-
-A small JSON file that works on any platform (a built-in list in the app, plus import from the phone's Downloads folder):
-
-```json
-{
-  "format": 1,
-  "name": "Example hill climb",
-  "type": "stage",
-  "start":  { "lat": 0.0, "lon": 0.0, "bearing": 90.0, "half_width_m": 12 },
-  "finish": { "lat": 0.0, "lon": 0.0, "bearing": 85.0, "half_width_m": 12 },
-  "splits": [ { "name": "Split 1", "lat": 0.0, "lon": 0.0, "bearing": 80.0, "half_width_m": 12 } ],
-  "surface": "tarmac",
-  "notes": "start and finish marked by driving over them, see docs/roadmap.md"
-}
-```
-
-A **gate** is a line segment centred on a GPS point, perpendicular to `bearing` (the direction of travel), `half_width_m` to each side. A crossing counts only in the direction of `bearing`.
-Sepang's existing line is the same thing (latitude 2.760726, longitude 101.738380, bearing 265°, half-width 40 m) and would move out of `LapTimer.java` into a circuit course file (`"type": "circuit"`, one `"line"`), which also makes other circuits a data change, not a code change.
-
-### Timing
-
-`LapTimer` already finds the crossing time by interpolating the path through the GPS fixes (a Hermite curve through position and velocity, sampled every 10 ms). The plan is to pull that into a `GateTimer` that reports the interpolated time of each gate crossing,
-and build both timers on it: `LapTimer` (one gate, a lap is the time between consecutive passes) and `StageTimer` (a state machine: **armed** at the start, **running** after the start gate, optional **splits**, **finished** at the finish gate, then re-armed for the next run).
-Each run writes `E,t_us,STAGE_START,name,run`, `E,t_us,SPLIT,name,run,seconds` and `E,t_us,STAGE_FINISH,name,run,seconds` into the CSV.
+**What is still open in this section.** The first three are things the independent Python check found in the method (details and numbers: [`stage-algorithm.md`](stage-algorithm.md) sections 9 and 10), in the order I would do them:
+- **A guard against tight stacked hairpins at a line.** A line is 50 m wide; where the road doubles back twice within 25 m of the start or finish line, a run can cross the line on the wrong leg and its time is wrong by tens of seconds (in simulation: legs 16 m apart, 0 to 6 runs of 100; 12 m apart, 29 to 63 of 100).
+  The fix I would try first is in the stage builder: count the forward crossings of each line by the marking route itself and refuse the stage (in words, saying which end) if either line is crossed more than once, so the driver marks the end a little way from the bends. A run-time alternative is to demand that the progress along the route at the finish crossing be close to the finish line's position, not just 70 % of the route.
+- **A finish by braking to a stop.** The lines come out 15 to 18 m of road from the marks, not 20, and in one simulated stage the finish line was 5 m before the stopping place, so every run crept over it under the 1.5 m/s limit and was scored *did not finish* (25 of 25; across three seeds 28 of about 1500 such runs). Options: place the finish line from the smoothed route; or accept the crossing when the car is moving faster than 1.5 m/s at *either* fix and fall back to the last fix before the car stopped; or say so when the marking drive's own first run does not finish.
+- **Fixtures for the rules no fixture exercises yet.** The mutation probe on the Python code left 30 of 55 one-line breakages unnoticed, so 30 rules of the method page are not held against a second implementation: the latitude bound, equal times, a bearing of 0, a fix exactly on the line, `across` = `half`, speed = 1.5, forward = 0.25, the 16-step scan, the `hAcc` > 30 skip, replace-versus-append of the finish vertex, the 0.01 m route margin, the heading penalty,
+  the 40 m window, the 60 m lost limit, `sNow` never decreasing, the 70 % and 10 s finish rules, the 5 s POST, the 300 s false-start limit, the 3 s near rule, the last profile knot, the worst-`hAcc` start value, skipping the first fix, the 12-section rule, the 12 m/s unknown speed, the 3 m/s floor. Each needs a small synthetic recording, an expected result from the Java, and a line in `stage_fixtures/README.md`; if the Python then disagrees, the page was vague again.
+- **Not tested on a phone, and not tested on a real road.** The checks ran on a PC against synthetic roads and the real Sepang log. A stage driven twice on a real road with a stopwatch or a second device at the lines is the first thing to do; until then the accuracy numbers are what a simulation says.
+- **Splits** (named intermediate lines) are not in 1.4; the comparison cuts the road into equal sections instead.
+- **Closed roads and permitted events.** 1.4 shows nothing live, because the driver's roads are open roads with traffic. For a closed stage, a hill climb or a track day a live delta against the best run would be the natural next step, behind its own switch and not shown on a public road. It is not built.
+- **Analysis of stages on a computer.** `analysis/stage_compare.py` scores, builds and compares; the power-law corner analysis (`powerlaws.py`) and the "ultimate stage" (best section of each kind stitched together) have not been ported to point-to-point roads. The loss-concentration and ultimate-lap ideas need care for stages: runs are rare, and tyres, weather and traffic change between them.
+- **Low grip, climbs and crests.** On gravel the grip is about half (perhaps 0.5 to 0.7 g), so braking distances roughly double and corner speed falls with the square root of grip, but a braking zone is still a straight line in speed² and corner speed still goes as `√(a r)`; the fitted `a` is the surface. A hill climb adds gravity to the straights
+  (`a = P/(m v) - k v² - g sin θ`), and crests break the "accelerometer reads about 1 g vertically" assumption the orientation fit relies on.
+- **Pace notes, co-driver and official timing are out of scope.**
 
 ### Why the lines matter more for a stage than for a lap
 
 A lap is the time between two crossings of the **same** line, so if the line is placed 5 m too far along the road, both crossings shift by the same amount and the lap time barely changes. A stage is timed between **two different** lines, and an error in the position of
 either one goes straight into the result: `error in seconds = error in metres / speed`. At 30 m/s, **1 m of line error is 0.033 s and 5 m is 0.17 s**. It is the same linear physics as everything else in this project, with a less forgiving consequence.
-So the start and finish points need to be good to about a metre, which a phone's 1 Hz GPS (3 to 4 m typical error) does not give by itself. Ways to get there:
-(a) use points the organisers or a survey provide; (b) mark each by driving over it slowly with the phone, averaging a few passes (the random error shrinks with the square root of the passes); (c) place the gate on a physical feature (a painted line, a gantry) and place it on a map with care.
-Even then, the random error of each GPS crossing (roughly the reported accuracy divided by speed, so 0.1 s or more) stays; the engine's habit of using the integrated speed between fixes improves on it. Expect a phone to time a stage to a tenth or two, not a hundredth, and never as an official result.
-
-### Analysis for stages
-
-Most of the machinery carries over; what changes:
-- **No loop.** Runs are aligned by distance along the route from the start gate. The route comes from the best run without a GPS gap, as the circuit map does today; `analyze.py` already finds and labels corners from the laps themselves (C1, C2, ...), which is the starting point.
-- **Sections** are cut at the long straights as now, or at fixed distances where the road has none, and the "ultimate stage" is built the same way (best section of each kind, speed carried over each join, shrunk toward typical, with an error bar).
-- **The power-law report** (braking in speed², corner speed against radius, what an exit is worth, where the time went) runs unchanged on the corners found in the route.
-- **Runs are rare.** A stage may be driven once per event, so the comparison is across runs and days, where tyres, weather and surface change. The loss-concentration and ultimate-stage ideas need care there, and the first sessions will mostly be a driver against their own earlier runs.
-- **Low grip changes the numbers, not the laws.** On gravel the grip is about half (perhaps 0.5 to 0.7 g), so braking distances roughly double and corner speed falls with the square root of grip, but a braking zone is still a straight line in speed² and corner speed still goes as `√(a r)`. The fitted `a` is the surface.
-- **Climbs and crests.** A hill climb adds gravity to the straights (`a = P/(m v) − k v² − g sin θ`); crests and jumps break the "accelerometer reads about 1 g vertically" assumption the orientation fit relies on. Both need work.
-- **Pace notes, co-driver and official timing are out of scope.**
-
-### Steps and tests
-
-1. The course file format and a reader in Java and Python (`analysis/course.py`).
-2. `GateTimer`, and `LapTimer` rebuilt on it with the existing checks (136, or 140 with the real log replayed) still passing.
-3. `StageTimer` and a stage screen (course picker, armed, running time, splits, finish, delta against the best run).
-4. The new `E` rows in [`log-format.md`](log-format.md) and in the analysis.
-5. A point-to-point mode in `ultimate.py` and `powerlaws.py`.
-6. Tests: a simulated stage in `sim/`, timer tests for crossings at different speeds, GPS noise, wrong-direction crossings and re-arming, and a test of the "1 m is 0.033 s at 30 m/s" rule.
-
-**Questions for the owner (owner).** Which events first (rally stages, hill climbs, time attacks)? Are the start and finish points known, or do they have to be marked by driving? What surface? How long are the stages and how fast? Will there be more than one run of the same stage?
+That is why 1.4 puts both lines 20 m inside the marks (a car pulling away from rest is already doing about 40 km/h there) and uses the same two lines for every run of a stage: a placement error is then shared by all the runs and cancels in a comparison, which is what the driver wants stages for. It is not a good way to get an absolute stage time to a hundredth, and nothing here claims to.
 
 ## 3. More circuits
 
@@ -86,7 +50,10 @@ Today the circuit is Sepang, from one data set (see [`../NOTICE.md`](../NOTICE.m
 
 ## 4. The coaching on the phone
 
-First a **pit debrief** screen: the ultimate lap and its gap, the three biggest gaps by corner, the braking-point spread at each heavy zone, and one question the data raises (the concept is in the top-level README). Three ways to get there:
+**The next release, in the order the driver chose.** (a) *Sepang from earlier sessions:* load one or more previous Sepang sessions on the phone as the baseline, so that the lap predictor and the comparison work from the first lap of a new session and not after a few laps of collecting data
+(the engine already takes a prior from other sessions; the work is carrying it to the phone). (b) *A Coaching button on the circuit screen:* predicted lap time and a live delta against the best-of-sessions lap from lap 1, with a debrief after the session. For the track only: stages on open roads stay as in section 2.
+
+The rest of this section is the older thinking about the debrief screen. First a **pit debrief** screen: the ultimate lap and its gap, the three biggest gaps by corner, the braking-point spread at each heavy zone, and one question the data raises (the concept is in the top-level README). Three ways to get there:
 (a) port the engine to Java: it works anywhere and is a large job (the speed fusion and the alignment are not small); (b) produce a small `debrief.json` on a laptop and open it in the app: small, but needs a laptop at the track; (c) compute in the cloud: needs internet, which the app deliberately does not have.
 I would start with (b), because it tests whether the screen is useful before the heavy work. A glanceable live delta comes only after that, and only if a driver wants it.
 

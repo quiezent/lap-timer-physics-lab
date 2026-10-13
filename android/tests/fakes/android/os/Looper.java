@@ -36,6 +36,12 @@ public final class Looper {
 
     public Thread getThread() { return thread; }
 
+    /** A looper nobody runs: what is posted to it stays queued. For tests of screens that must be stepped by hand. */
+    public static Looper newDetached() { return new Looper(Thread.currentThread()); }
+
+    /** How many messages are waiting. */
+    public synchronized int queued() { return q.size(); }
+
     boolean enqueue(Runnable r, long delayMs) {
         long when = System.nanoTime() + Math.max(0L, delayMs) * 1_000_000L;
         synchronized (this) {

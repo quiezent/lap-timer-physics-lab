@@ -1,0 +1,12 @@
+TRACKLOGGER-RUN 1
+stage st_road1
+run 20261013_110000_2
+csv session_20261013_110000.csv
+utc_ms 1791889795226
+finished 0
+status the recording ended before the finish line
+length_m 4713.15
+step_m 25.0
+quality 111 1.000 0.0 3.5 12.0 1.000 0.000
+line_speeds 30.17 -1.00
+end

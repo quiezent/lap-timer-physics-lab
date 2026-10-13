@@ -12,6 +12,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -40,7 +41,8 @@ public class MainActivity extends Activity {
 
     private TextView tvStatus, tvSpeed, tvGps, tvImu, tvG, tvLog, tvCal, tvMsg;
     private TextView tvLapHead, tvLapClock, tvLapLast, tvLapBest, tvLapListHead, tvLapList;
-    private LinearLayout lapBlock;
+    private LinearLayout lapBlock, panel, stageBanner;
+    private TextView tvStageWord, tvStageGuide;
     private String lapListShown = "";
     private Button btnStart, btnStop, btnExport, btnShare;
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -116,7 +118,36 @@ public class MainActivity extends Activity {
         root.setPadding(dp(20), dp(20), dp(20), dp(28));
         sv.addView(root, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        addBlock(root, text("TRACK LOGGER", 13, DIM, true, false), 0, 0);
+        // header: the name of the app, and the way to the stages screen (release 1.4)
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        TextView title = text("TRACK LOGGER", 13, DIM, true, false);
+        title.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+        Button btnStages = button("Stages", PANEL, FG, new View.OnClickListener() {
+            @Override public void onClick(View v) { openStages(); }
+        });
+        btnStages.setTextSize(14);
+        head.addView(btnStages, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)));
+        addBlock(root, head, 0, 44);
+
+        // while a stage is armed, recording or being marked, words stand in for the numbers (shown by refresh())
+        stageBanner = new LinearLayout(this);
+        stageBanner.setOrientation(LinearLayout.VERTICAL);
+        stageBanner.setBackgroundColor(PANEL);
+        stageBanner.setPadding(dp(14), dp(12), dp(14), dp(12));
+        tvStageWord = text("", 30, FG, true, false);
+        tvStageGuide = text("", 15, FG, false, false);
+        TextView tvStageReminder = text(StageText.ROAD_REMINDER, 13, DIM, false, false);
+        stageBanner.addView(tvStageWord);
+        addBlock(stageBanner, tvStageGuide, 4, 0);
+        addBlock(stageBanner, tvStageReminder, 8, 0);
+        stageBanner.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { openStages(); }
+        });
+        stageBanner.setVisibility(View.GONE);
+        addBlock(root, stageBanner, 12, 0);
+
         tvStatus = text("READY", 30, FG, true, false);
         addBlock(root, tvStatus, 4, 0);
         tvSpeed = text("-- km/h", 52, FG, true, false);
@@ -136,7 +167,7 @@ public class MainActivity extends Activity {
         lapBlock.setVisibility(View.GONE);
         addBlock(root, lapBlock, 6, 0);
 
-        LinearLayout panel = new LinearLayout(this);
+        panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setBackgroundColor(PANEL);
         panel.setPadding(dp(14), dp(12), dp(14), dp(12));
@@ -268,7 +299,18 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void openStages() {
+        startActivity(new Intent(this, StagesActivity.class));
+    }
+
     private void onStopClicked() {
+        if (StageLive.busy()) {              // a stage is armed, recording or being marked: this button ends it
+            final int st = StageLive.state;
+            final boolean marking = st == StageLive.MARK_START || st == StageLive.MARK_DRIVE;
+            startService(new Intent(this, RecorderService.class)
+                    .setAction(marking ? RecorderService.ACTION_MARK_CANCEL : RecorderService.ACTION_DISARM));
+            return;
+        }
         if (!Recorder.LIVE.recording) return;
         Intent i = new Intent(this, RecorderService.class).setAction(RecorderService.ACTION_STOP);
         startService(i);
@@ -321,7 +363,7 @@ public class MainActivity extends Activity {
 
     // ------------------------------------------------------------------ periodic refresh
 
-    private void refresh() {
+    void refresh() {
         final Recorder.Live L = Recorder.LIVE;
         final boolean rec = L.recording;
         final long nowNs = SystemClock.elapsedRealtimeNanos();
@@ -431,6 +473,51 @@ public class MainActivity extends Activity {
             lapBlock.setVisibility(View.GONE);
             tvLapListHead.setVisibility(View.GONE);
             tvLapList.setVisibility(View.GONE);
+        }
+        try {
+            applyStageMode(L);
+        } catch (RuntimeException e) {
+            stageBanner.setVisibility(View.GONE);
+        }
+    }
+
+    /**
+     * While a stage is armed, recording or being marked, this screen shows words and no numbers about the drive: no speed, no lap clock,
+     * no G, no recording clock (the rule for open roads, StageLive.numbersAllowed; the stages screen has the details). It runs last so
+     * that it overrides what the rest of refresh() has just put on the screen.
+     */
+    private void applyStageMode(Recorder.Live L) {
+        final boolean stage = StageLive.busy();
+        stageBanner.setVisibility(stage ? View.VISIBLE : View.GONE);
+        panel.setVisibility(stage ? View.GONE : View.VISIBLE);
+        tvSpeed.setVisibility(stage ? View.GONE : View.VISIBLE);
+        tvStatus.setVisibility(stage ? View.GONE : View.VISIBLE);
+        if (stage) {
+            final int state = StageLive.state;
+            tvStageWord.setText(StageText.stateWord(state));
+            tvStageWord.setTextColor(state == StageLive.ARMED ? GREEN : state == StageLive.SAVING || state == StageLive.MARK_SAVING ? AMBER : RED);
+            tvStageGuide.setText(StageText.guide(state, StageLive.stageName, StageLive.markHint, StageLive.message));
+            lapBlock.setVisibility(View.GONE);
+            tvLapListHead.setVisibility(View.GONE);
+            tvLapList.setVisibility(View.GONE);
+            btnStart.setEnabled(false);
+            btnStart.setAlpha(0.35f);
+            btnStop.setText(state == StageLive.MARK_START || state == StageLive.MARK_DRIVE ? "Cancel marking" : "Disarm");
+            btnStop.setEnabled(state != StageLive.SAVING && state != StageLive.MARK_SAVING);
+            btnStop.setAlpha(btnStop.isEnabled() ? 1f : 0.35f);
+            btnExport.setEnabled(false);
+            btnExport.setAlpha(0.35f);
+            btnShare.setEnabled(false);
+            btnShare.setAlpha(0.35f);
+            if (StageLive.error.length() > 0) {
+                tvMsg.setText(StageLive.error);
+                tvMsg.setTextColor(RED);
+                tvMsg.setVisibility(View.VISIBLE);
+            } else {
+                tvMsg.setVisibility(View.GONE);
+            }
+        } else {
+            btnStop.setText("Stop & save");
         }
     }
 

@@ -1,14 +1,15 @@
 # Contributing
 
 This project started as one conversation between a driver and me (I'm Claude, an AI model made by Anthropic) and it is meant to keep growing:
-an iPhone recorder, stage timing with start and finish GPS points, more circuits, better analysis. If you want to add to it, this page is how to do that without breaking what is already here.
+an iPhone recorder, more circuits, better analysis, and the stages that now exist on Android. If you want to add to it, this page is how to do that without breaking what is already here.
 The big picture is in the [README](README.md); what I'd build next, in order, is in [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Before you send anything
 
 - **Licence.** None has been chosen yet; that is the repository owner's decision, not mine, and I'd like it settled before outside code arrives so you know the terms you are contributing under.
   If you want to contribute now, please open an issue first and say what you plan to do. Third-party data and tools are listed in [`NOTICE.md`](NOTICE.md) and their terms stay with them.
-- **Safety.** The app is for a phone that is mounted and left alone while the car moves. Nothing here should ask a driver to look at or touch a phone on the move, and stage timing is for closed roads and permitted events, not for public roads.
+- **Safety.** The app is for a phone that is mounted and left alone while the car moves. Nothing here should ask a driver to look at or touch a phone on the move. Stages (release 1.4) are used on open roads, so while a stage is armed, recording or being marked and the car is not known to be stopped, **no screen may show a time, a difference or a comparison**
+  (`StageLive.numbersAllowed()` is the one place that decides, and `StageUiTests` fail if a number gets through); the only live feedback is the beeps; and nothing may prompt a driver to go faster. A live display for a closed road or a track is a separate feature with its own switch, not a change to this rule.
 - **Privacy.** A GPS trace shows where someone lives if it starts or ends at their home. Only share logs from circuits and closed events; cut the first and last minutes if they pass a house; look at the file before you post it.
   The log format holds the device model and nothing else about a person (see [`docs/log-format.md`](docs/log-format.md)).
 - **Never commit the signing key** (`*.jks`, `*.keystore`, `*.p12`). `.gitignore` blocks them; please don't force it.
@@ -17,7 +18,7 @@ The big picture is in the [README](README.md); what I'd build next, in order, is
 
 1. **An iPhone recorder** in [`ios/`](ios). It has to write the same CSV the Android app writes, so every script here works on it unchanged. The contract is [`docs/log-format.md`](docs/log-format.md) and the test is `python analysis/check_log.py your_session.csv`.
    The first real iPhone file is worth more than any amount of code: the checks in `check_log.py` came from my guesses about what goes wrong.
-2. **Stage timing**: start and finish gates given as GPS points, splits, a stage screen, and a point-to-point mode in the analysis. The design, with its tests, is in [`docs/roadmap.md`](docs/roadmap.md) section 2.
+2. **Stages** (built in 1.4, see [`docs/stages.md`](docs/stages.md)): a real-road test against a stopwatch or a second device, splits, the point-to-point power-law analysis, an iPhone implementation that matches `docs/stage-algorithm.md` and the files in `analysis/stage_fixtures`. What is open is listed in [`docs/roadmap.md`](docs/roadmap.md) section 2.
 3. **More circuits**: a course file for each one and a script that builds the circuit data from the TUMFTM racetrack database.
 4. **Data**: sessions from other drivers, cars, phones and circuits (see the end of the roadmap for what I'd most like), with a short README beside the file like [`data/sepang-2026-10-13/README.md`](data/sepang-2026-10-13/README.md).
 5. **Tests**: the analysis has a regression check on the real log but no unit tests, and the powerlaws layer in particular could use some. The checks below also run on every push and pull request through `.github/workflows/checks.yml` (both jobs pass on GitHub's runners as of 13 Oct 2026); if the workflow itself breaks later, a fix to that file is a welcome pull request.
@@ -28,7 +29,7 @@ The big picture is in the [README](README.md); what I'd build next, in order, is
 ```
 # the Android recorder and lap timer (needs only a JDK, 8 or newer; no Android SDK)
 JAVA_EXTRA=-Dreal.log=data/sepang-2026-10-13/session_20261013_095638.csv bash android/tests/run.sh all
-                                                 # 140 required checks, all must pass (136 if you leave out the real-log replay)
+                                                 # 324 required checks, all must pass (315 if you leave out the real-log replay)
 
 # any recorder (Android, iPhone, anything else) against the format contract
 python analysis/check_log.py path/to/session.csv  # no FAIL lines (a WARN is explained in the output)
@@ -36,6 +37,11 @@ python analysis/check_log.py path/to/session.csv  # no FAIL lines (a WARN is exp
 # the analysis, on the committed real log (about 40 seconds)
 pip install -r requirements.txt
 python analysis/regression_check.py              # re-runs ultimate.py and powerlaws.py and compares every output with reports/sepang-2026-10-13/
+python analysis/test_reader.py                   # the reader takes every kind of row the app writes (11 checks, under a second)
+
+# the stage method, written a second time from docs/stage-algorithm.md (about 10 seconds)
+python analysis/stage_compare.py selftest        # reproduces every expected result in analysis/stage_fixtures, byte for byte for the files
+python sim/simulate_stage.py --quick             # the stage simulation, a tenth of the runs
 ```
 
 `regression_check.py` prints PASS or FAIL for each output file and exits with 1 if anything moved. The runs are deterministic, so on the same library versions and the same kind of machine everything is identical; on other versions or another CPU a number can move in its last bits or last printed digit, which the check tolerates (`--strict` does not).

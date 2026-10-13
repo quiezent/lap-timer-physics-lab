@@ -9,6 +9,8 @@ How to run the Python analysis on a recording and how to read what comes out. Th
 | `ultimate.py` | One or several files: builds the circuit map, stitches the **ultimate lap**, measures every loop against it, replays the **lap predictor** (it calls `analyze.py` for each file) | the day's report |
 | `powerlaws.py` | One file: the **power-law report** of this project: braking in speed², corner speed against radius, what an exit speed is worth, where the time went, with figures and tables | the physics view; the report in `reports/` was made with it |
 | `check_log.py` | One file: does the recording meet the [log format](log-format.md)? PASS / WARN / FAIL lines for rates, units, signs and clocks | the first thing to run on a file from a new recorder or phone |
+| `stage_compare.py` | (release 1.4) **Stages** on a computer: `build` a stage from a marking recording, `score` every run of a stage in a recording, `compare` two runs (a stage file, a folder or a backup zip), `selftest`. It reads and writes the same text files as the app ([`stage-format.md`](stage-format.md)) and was written from the method page ([`stage-algorithm.md`](stage-algorithm.md)) without reading the Android code | scoring a recording you copied off the phone; checking another implementation against the fixtures |
+| `test_reader.py` | Does `analyze.load_session` take every kind of row the app writes (the 1.4 stage events included)? 11 small cases, under a second | after a change to the reader |
 | `watch_day.py` | A folder: re-runs `ultimate.py` whenever a new session file arrives | at the track, with a laptop |
 | `regression_check.py` | Re-runs `ultimate.py` and `powerlaws.py` on the committed Sepang log and compares every output with `reports/sepang-2026-10-13/` | after any change to the analysis (about 40 s) |
 
@@ -20,6 +22,19 @@ python analysis/powerlaws.py data/sepang-2026-10-13/session_20261013_095638.csv 
 `powerlaws.py` runs the engine first (so it needs `ultimate.py` and its companions in the same folder), then writes `numbers.json` (every figure it quotes), `tables/*.csv` and
 `figures/*.png` into `--out`; `--work DIR` chooses where the engine's intermediate files go and `--no-plots` skips the figures. It takes about 20 seconds. The results are deterministic
 (the bootstrap uses a fixed seed). `sim/calibrated_lap.py` then uses `numbers.json` to ask whether the physics reproduces the real lap time (see the report, section 8).
+
+## `stage_compare.py`: stages from a computer
+
+```
+python analysis/stage_compare.py selftest                                  # reproduces every expected result of analysis/stage_fixtures (about a second)
+mkdir my_stage
+python analysis/stage_compare.py build marking.csv --id st_mine --name "My road" --out my_stage/stage.txt   # a stage from a marking recording
+python analysis/stage_compare.py score my_stage session_20261013_121500.csv --out-dir my_stage             # every run of that stage in a recording, saved as run files
+python analysis/stage_compare.py compare my_stage                                                         # the newest run against the best other one (--against previous, --plot f.png)
+```
+
+Run `python analysis/stage_compare.py --help` for the options of each command (it needs only the Python standard library; `--plot` also needs matplotlib). A *marking recording* is a session file with `MARK_START` and `MARK_FINISH` events, such as the app writes when you mark a stage.
+The method is [`stage-algorithm.md`](stage-algorithm.md); the plain-words guide is [`stages.md`](stages.md). Stage times are good to a few tenths of a second, not to the hundredth: read the accuracy section before quoting one.
 
 ## `analyze.py`: analyse one session
 

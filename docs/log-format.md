@@ -9,7 +9,7 @@ If this page and the reader disagree, the reader wins and this page has a bug: p
 
 ## The file
 
-- Plain text, UTF-8, one record per line, fields separated by commas, `.` as the decimal point, `\n` or `\r\n` line ends. Named `session_YYYYMMDD_HHMMSS.csv` (local time at START).
+- Plain text, UTF-8, one record per line, fields separated by commas, `.` as the decimal point, `\n` or `\r\n` line ends. Named `session_YYYYMMDD_HHMMSS.csv` (local time at START). Since 1.4 the Android recorder never reuses a name that already exists in its folder: a second recording started in the same second becomes `session_YYYYMMDD_HHMMSSb.csv` (then `c` ... `z`). The reader does not care about the name.
 - Raw: **nothing is rotated, calibrated or filtered on the phone.** The analysis fits the phone's orientation and sensor errors itself, so a recorder should not try to help.
 - About 0.5 MB per minute at 100 Hz sensors.
 - The reader tolerates a truncated last line, blank lines and rows it does not know (it counts and ignores them), so a crash never costs the whole file.
@@ -20,7 +20,7 @@ Lines starting with `#`, before or among the data rows. They are for people and 
 Suggested content (the Android recorder writes exactly this):
 
 ```
-# TrackLogger 1.3 (raw phone-frame log; process offline with analyze.py)
+# TrackLogger 1.4 (raw phone-frame log; process offline with analyze.py)
 # device,samsung SM-S931B
 # android,16,sdk,36
 # start_utc_ms,1791856598695
@@ -61,9 +61,16 @@ gives one. `hAcc` is the 68% horizontal radius, `sAcc` the 1-sigma speed accurac
 | `CAL` | `mx, my, mz, noise, bx, by, bz, ok` | The result of a stationary calibration in the first seconds: mean accelerometer (m/s²), its noise, mean gyro (rad/s), and `ok = 1` if the car was judged still. Optional; the analysis falls back to fitting the orientation from the drive when it is missing or `ok = 0` |
 | `CALFAIL` | none | Too little accelerometer data to calibrate |
 | `LAP` | `n, seconds` | The recorder's own timer saw the car cross its line: lap `n` took `seconds`; `n = 0` is the first pass, which only starts the clock. Optional; the analysis finds laps itself from the GPS |
+| `STAGE` | `stage_id` | (1.4) This recording is a run of the stage with this id; written once, with the first GPS fix after the armed phone started the recording |
+| `STAGE_START` | none | (1.4) The car crossed the stage's start line; `t_us` is the interpolated moment of the crossing, not the time of a fix |
+| `STAGE_FINISH` | `seconds` | (1.4) The car crossed the finish line; the stage took this long (finish time minus start time, to a millisecond) |
+| `STAGE_DNF` | `reason` | (1.4) The run started and did not finish (the car stood still for 20 minutes, the run took far too long, or the recording was stopped before the finish line). Plain words, with commas replaced by spaces |
+| `STAGE_ABORT` | `reason` | (1.4) The recording was started for a stage and the car never crossed the start line (it moved away from it, or 5 minutes went by). Plain words. The app deletes such a recording after writing this row, so a file you meet with this row has been copied out of the app some other way |
+| `MARK_START` | `lat, lon, accuracy_m` | (1.4) The driver parked and marked the start of a new stage here: the average of the last (up to 5) still fixes, degrees with 7 decimals, and the mean `hAcc` of those fixes in metres |
+| `MARK_FINISH` | `lat, lon, accuracy_m` | (1.4) The same for the finish. A recording with both is the *marking drive* from which the app builds a stage |
 | `STOP` | none | Always the last row |
 
-New event names are fine: the reader ignores names it does not know.
+New event names are fine: the reader ignores names it does not know. None of the `STAGE*` or `MARK_*` rows is needed by the analysis: the app finds a stage's runs from the GPS fixes, and `analysis/stage_compare.py` does the same from the file ([`stage-algorithm.md`](stage-algorithm.md)); the events are the recorder's own notes of what it did, and a way to check one against the other.
 
 ## Axes and signs
 

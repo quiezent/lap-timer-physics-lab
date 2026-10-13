@@ -16,7 +16,8 @@ permissions:
 
 jobs:
   android-recorder-and-lap-timer:
-    # 140 checks against fakes of the Android classes; needs only a JDK. The real Sepang log is replayed through the lap timer.
+    # 324 checks against fakes of the Android classes (315 without the real log); needs only a JDK. The real Sepang log is replayed through
+    # the lap timer and the stage code.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,3 +42,22 @@ jobs:
         run: python analysis/check_log.py data/sepang-2026-10-13/session_20261013_095638.csv
       - name: Regression check
         run: python analysis/regression_check.py
+      - name: The reader takes every kind of row the app writes
+        run: python analysis/test_reader.py
+
+  stages-second-implementation:
+    # The stage method written a second time from docs/stage-algorithm.md alone (analysis/stage_compare.py) must reproduce every expected
+    # result in analysis/stage_fixtures, and the stage simulation must still run. stage_compare.py needs only the standard library;
+    # the simulation needs numpy.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install requirements
+        run: pip install -r requirements.txt
+      - name: Second implementation against the fixtures
+        run: python analysis/stage_compare.py selftest
+      - name: Stage simulation, a tenth of the runs
+        run: python sim/simulate_stage.py --quick

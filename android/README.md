@@ -1,18 +1,20 @@
 # Track Logger for Android
 
-The phone app. It does two jobs:
+The phone app. It does three jobs:
 
 1. **Records** the raw signals of a drive to one CSV file: accelerometer and gyroscope at about 100 Hz, GPS at about 1 Hz, satellite counts and
    a clock check. Nothing is processed on the phone. The file format is described in [`../docs/log-format.md`](../docs/log-format.md); the
    Python analysis in [`../analysis`](../analysis) turns it into lap times, an ultimate lap and the power-law report.
 2. **Times laps** (version 1.3) from GPS at one built-in line across the main straight at Sepang, and shows the running lap, the last lap against
    the best, and the list of laps. Each crossing is also written to the CSV as a `LAP` event.
+3. **Times stages** (version 1.4): point-to-point roads with a start and a finish that you mark yourself by driving them once. With a stage armed, the phone records from the approach to the start line until just after the finish line, keeps every drive as a run,
+   and compares runs afterwards. **It is built for open roads: while the car moves the screen shows words and no numbers**, and the only feedback is a beep. Guide: [`../docs/stages.md`](../docs/stages.md).
 
-It does not yet show any of the coaching ideas from the report. That would be the next build (see the top-level README).
+It does not yet show any of the coaching ideas from the report. That would be a later build (see the top-level README).
 
 **Status.** Version 1.2 (the recorder) ran on a real phone at Sepang on 13 Oct 2026: a Samsung Galaxy S25 on Android 16, 44 minutes, no data loss.
-Version 1.3 adds the lap timer. It passed 140 automated checks on a PC against a simulated Android (136 of them need nothing else; the other 4 replay the real log's GPS fixes through
-the timer and reproduce the 15 lap times of an independent calculation), but **the 1.3 lap screen has not been run on a phone yet**. If you try it, please open an
+Version 1.3 adds the lap timer and 1.4 adds Stages. Version 1.4 passes 324 automated checks on a PC against a simulated Android (315 of them need nothing else; the rest replay the real log's GPS fixes through the lap timer and the stage code, reproducing the 15 lap times of an independent calculation, and score a stage cut out of the real log),
+and the stage method has a second implementation, in Python, written from the method page alone, that reproduces the test files byte for byte. But **neither the 1.3 lap screen nor the 1.4 stage screens have been run on a phone**, and no stage has been driven on a road. If you try them, please open an
 issue and say what the screen did.
 
 Needs Android 10 or later, a GPS and an accelerometer; a gyro is strongly recommended. The app has no internet permission.
@@ -23,17 +25,23 @@ Needs Android 10 or later, a GPS and an accelerometer; a gyro is strongly recomm
 | `src/app/tracklog/RecorderService.java` | foreground service that keeps recording with the screen off |
 | `src/app/tracklog/Exporter.java` | copies the finished file to Downloads |
 | `src/app/tracklog/LapTimer.java` | line crossing, lap times (the Sepang line is a constant at the top of this file) |
-| `src/app/tracklog/MainActivity.java` | the screen |
-| `tests/` | the harness (136 checks, 140 with the real log replayed) and the fakes of the Android classes it runs against (needs only a JDK): `tests/run.sh` |
+| `src/app/tracklog/MainActivity.java` | the recorder screen (it shows words instead of numbers while a stage is armed or recording) |
+| `src/app/tracklog/StagesActivity.java`, `StageText.java` | the Stages screens: list, a stage and its runs, the comparison with its graph, marking, backup and restore; and every word and number they show, as plain functions so they can be tested |
+| `src/app/tracklog/Gate.java`, `Geo.java`, `Pt.java`, `Route.java`, `StageRun.java`, `Scorer.java`, `Compare.java` | the stage method in plain Java ([`../docs/stage-algorithm.md`](../docs/stage-algorithm.md)): a timing line, the flat map frame, a placed fix, the route, following a run, scoring a whole recording, comparing two runs |
+| `src/app/tracklog/StageMarker.java`, `MarkSession.java`, `StageBuilder.java` | marking a stage and building it from the drive |
+| `src/app/tracklog/ArmedWatcher.java`, `StageSession.java`, `StageWatcher.java`, `StageLive.java`, `ResultGuard.java`, `Beeper.java` | the armed phone: waiting for the start line on the GPS alone, the live run, what the screens may show (`ResultGuard`: numbers only once the car has stopped), the beeps; `RecorderService.java` gained the armed and marking modes |
+| `src/app/tracklog/Stage.java`, `StageFiles.java`, `StageStore.java`, `StageBundle.java`, `StageExporter.java`, `StageRescore.java`, `LogReader.java`, `RunResult.java` | the files ([`../docs/stage-format.md`](../docs/stage-format.md)): reading and writing stages and runs, the backup zip, scoring recordings made earlier |
+| `tests/` | the harness (324 checks with the real log replayed, 315 without) and the fakes of the Android classes it runs against, including the few widgets the two screens use (needs only a JDK): `tests/run.sh` |
 | `build.sh`, `fetch_tools.sh` | build without Gradle or Android Studio (section 6) |
-| `../releases/TrackLogger-1.3.apk` | the built app, with a second APK (1.2) and checksums |
+| `../releases/TrackLogger-1.4.apk` | the built app, with the two earlier APKs (1.3, 1.2) and checksums |
 
 
 ## 1. Install the app
 
-1. Get `TrackLogger-1.3.apk` onto the phone (open it in the `releases/` folder of this repository on GitHub and use *Download raw file*, or Drive, email to yourself, USB...).
-   **Updating from 1.2:** install it over the old one (same signing key, higher version number); the permissions and the
+1. Get `TrackLogger-1.4.apk` onto the phone (open it in the `releases/` folder of this repository on GitHub and use *Download raw file*, or Drive, email to yourself, USB...).
+   **Updating from 1.2 or 1.3:** install it over the old one (same signing key, higher version number); the permissions and the
    recordings stay. Finish and save any running session first: installing stops the app.
+   **Stages live inside the app and Android deletes them when the app is uninstalled** (cloud backup is switched off on purpose). Use *Back up stages* on the Stages screen after you mark one; the backup is a zip in `Downloads/TrackLogger`.
    The APK in this repository is signed with the key I generated when I built 1.2. That key is private and is not in the repository, so an APK you build
    yourself carries a different signature: Android will refuse to install it over this one until you uninstall the old app (recordings in Downloads survive).
 2. Open it. Android asks to allow "Install unknown apps" for the app you opened it from. Allow that.
@@ -41,7 +49,7 @@ Needs Android 10 or later, a GPS and an accelerometer; a gyro is strongly recomm
    machine, not by Google Play, so this warning is expected. (Google's developer-verification rules went live on
    30 Sep 2026 for Indonesia, Singapore and Thailand, and some reports add Brazil. Google says the rest of the world
    follows during 2027. Malaysia was not on the list when I checked on 12 Oct 2026. If your phone refuses the install
-   anyway, `adb install TrackLogger-1.3.apk` from a computer still works, and Google's "advanced flow" lets you
+   anyway, `adb install TrackLogger-1.4.apk` from a computer still works, and Google's "advanced flow" lets you
    continue after a one-time setup.)
    On Samsung phones, *Auto Blocker* (Settings > Security and privacy) stops all sideloaded installs: switch it off first.
 4. Open **Track Logger**. Tap START. Allow **Precise** location (not "Approximate") and notifications, then tap START again.
@@ -64,9 +72,10 @@ One CSV per session in `Downloads/TrackLogger/session_YYYYMMDD_HHMMSS.csv`, abou
 | `G` | gyroscope, 3 axes in phone coordinates, about 100 Hz |
 | `L` | GPS fix: lat, lon, altitude, Doppler speed, bearing, accuracies, delay (about 1 Hz on most phones) |
 | `S` | satellites visible / used, once a second |
-| `E` | `START`, `CAL` (the stationary calibration and its result), `CALFAIL`, `LAP,n,seconds` (1.3: the lap timer saw the car cross its line; `n` = 0 starts the clock, `n` >= 1 is lap n and its time), `STOP` |
+| `E` | `START`, `CAL` (the stationary calibration and its result), `CALFAIL`, `LAP,n,seconds` (1.3: the lap timer saw the car cross its line; `n` = 0 starts the clock, `n` >= 1 is lap n and its time), `STAGE`, `STAGE_START`, `STAGE_FINISH,seconds`, `STAGE_DNF`, `STAGE_ABORT`, `MARK_START`, `MARK_FINISH` (1.4: see [`../docs/log-format.md`](../docs/log-format.md)), `STOP` |
 | `K` | clock check: arrival time minus event time, every 30 s |
 
+A recording is named `session_YYYYMMDD_HHMMSS.csv`; since 1.4 a name that exists is never reused (a second recording in the same second becomes `...b.csv`).
 Times are microseconds since START on one clock. A missing GPS value is `-1` (altitude `-9999`). `L` rows are written when
 the fix arrives, so they can sit slightly out of order and the first can have a small negative time: the analysis sorts them.
 
@@ -111,6 +120,10 @@ If anything fails, open an issue and say what the screen says. Do not wait until
   curve through the fixes either side, which for the real log agrees with an independent calculation to the millisecond.
   Each crossing is also written to the CSV as an `E,...,LAP,n,seconds` row. The clock shows `-:--.-` until the first pass, and
   GPS must be locked. It is for Sepang only; for another circuit the line has to be changed in `LapTimer.java`.
+* **Stages (1.4).** Everything here is done parked. *Stages* on the main screen; *Mark a new stage*: park at the start and keep still until *Mark start* turns on, press it, drive the road, park at the finish, press *Mark finish* (the app builds the stage from the drive and scores the drive as its first run).
+  To drive it again, open the stage and press *Arm this stage*, put the phone in its mount and drive; the phone starts recording as you move within 400 m of the start line, stops 5 s after the finish line, saves the run and arms itself again. **While a stage is armed or recording the screen shows words, not numbers, and shows no speed or clock on the main screen**; one beep at the start line,
+  two at the finish line, a low tone if a run is given up (the beeps follow the media volume and can be switched off in the settings of the Stages screen; I have not heard them on a phone). Look at the times when you have stopped. Keep your phone's battery setting on Unrestricted as above, or Android may stop an armed phone with the screen off. Drive legally and safely: a time is never a reason to break a rule.
+  The first time you press ARM or MARK the app shows a short road-rules text and waits for you to accept it.
 * **If the app is killed or the screen says NOT SAVED**: reopen it and tap *Re-export last session*. The recording is
   flushed to the app's private folder every second, so at most the last second is lost.
 * **Backup**: run an established lap-timing app (RaceChrono, TrackAddict, Harry's LapTimer...) at the same time. Two apps can
@@ -122,6 +135,8 @@ If anything fails, open an issue and say what the screen says. Do not wait until
   both pedals; once the car is power-limited, 70 % and 100 % throttle look alike.
 * **GPS is about 1 Hz.** The 100 Hz traces between fixes come from the inertial sensors. Position (the map, lap line)
   is good to a few metres.
+* **Stage times are good to a few tenths of a second, not to the hundredth**, and worse the slower the car is going at the start and finish lines ([`../docs/stages.md`](../docs/stages.md)). Tight stacked hairpins at a line can fool the timer, and a finish by braking to a stop can be scored "did not finish"; the app does not warn about either yet.
+  If Android kills the app in the middle of a run, the run is not saved (the recording up to that point is, in `Downloads/TrackLogger`, and *Score the recordings on this phone* finds the run in it).
 * A phone is not a calibrated logger. Use it for shapes, timings and consistency between laps, not for absolute
   engineering numbers. Body roll and pitch leak a little into the lateral and longitudinal channels.
 * If the car never stands still at the start of a session, the orientation is fitted from the drive instead (see [`../docs/analysis-manual.md`](../docs/analysis-manual.md)).

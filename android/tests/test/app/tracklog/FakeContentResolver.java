@@ -4,9 +4,11 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.net.Uri;
 import android.provider.MediaStore;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -37,6 +39,13 @@ final class FakeContentResolver extends ContentResolver {
     }
 
     private final Map<Long, Row> rows = new LinkedHashMap<>();
+    /** Files a document picker could hand out: uri text to content. */
+    final Map<String, byte[]> documents = new LinkedHashMap<>();
+    volatile RuntimeException failOpenInput;               // thrown by openInputStream (e.g. a SecurityException)
+    /** The names a document provider gives picked files (OpenableColumns.DISPLAY_NAME): uri text to name. A uri not in it gets no row. */
+    final Map<String, String> displayNames = new LinkedHashMap<>();
+    volatile RuntimeException failQuery;                   // thrown by query
+    volatile int queryCalls;
     private final AtomicLong ids = new AtomicLong(100);
     volatile long insertDelayMs, writeDelayMs;
     volatile boolean failInsert, failWrite, failClose;
@@ -85,6 +94,36 @@ final class FakeContentResolver extends ContentResolver {
                 if (failClose) throw new IOException("close failed (injected)");
             }
         };
+    }
+
+    @Override public android.database.Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
+        queryCalls++;
+        RuntimeException f = failQuery;
+        if (f != null) throw f;
+        final String name;
+        synchronized (this) { name = displayNames.get(uri.toString()); }
+        if (name == null) return null;
+        return new android.database.Cursor() {
+            private boolean onRow;
+            @Override public boolean moveToFirst() { onRow = true; return true; }
+            @Override public int getColumnIndex(String column) { return android.provider.OpenableColumns.DISPLAY_NAME.equals(column) ? 0 : -1; }
+            @Override public boolean isNull(int i) { return false; }
+            @Override public String getString(int i) { if (!onRow || i != 0) throw new IllegalStateException("bad cursor use"); return name; }
+            @Override public void close() { }
+        };
+    }
+
+    @Override public InputStream openInputStream(Uri uri) throws FileNotFoundException {
+        RuntimeException f = failOpenInput;
+        if (f != null) throw f;
+        byte[] d;
+        synchronized (this) { d = documents.get(uri.toString()); }
+        if (d == null) {
+            Row r = find(uri);
+            if (r != null) d = r.data;
+        }
+        if (d == null) throw new FileNotFoundException("no such document: " + uri);
+        return new ByteArrayInputStream(d);
     }
 
     @Override public int update(Uri uri, ContentValues values, String where, String[] args) {

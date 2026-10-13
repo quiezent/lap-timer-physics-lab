@@ -50,6 +50,9 @@ final class CsvAudit {
         return true;
     }
 
+    static final java.util.Set<String> KNOWN_E = new java.util.HashSet<>(java.util.Arrays.asList(
+            "START", "STOP", "CAL", "CALFAIL", "LAP", "STAGE", "STAGE_START", "STAGE_FINISH", "STAGE_DNF", "STAGE_ABORT", "MARK_START", "MARK_FINISH"));
+
     /** Documented field counts: A,G=5  L=12  S=4  K=4  E>=3 (START/STOP=3, CAL=11 per the emit() in finishCalibration, LAP=5). */
     List<String> badRows() {
         List<String> bad = new ArrayList<>();
@@ -75,7 +78,12 @@ final class CsvAudit {
                     else if (f[2].equals("CAL") && (f.length != 11 || !allFin(f, 3, 10))) why = "CAL fields=" + f.length;
                     else if (f[2].equals("CALFAIL") && f.length != 3) why = "fields=" + f.length;
                     else if (f[2].equals("LAP") && (f.length != 5 || !isLong(f[3]) || !fin(f[4]))) why = "LAP fields=" + f.length;
-                    else if (!f[2].equals("START") && !f[2].equals("STOP") && !f[2].equals("CAL") && !f[2].equals("CALFAIL") && !f[2].equals("LAP")) why = "unknown event " + f[2];
+                    else if (f[2].equals("STAGE") && (f.length != 4 || f[3].isEmpty())) why = "STAGE fields=" + f.length;
+                    else if (f[2].equals("STAGE_START") && f.length != 3) why = "STAGE_START fields=" + f.length;
+                    else if (f[2].equals("STAGE_FINISH") && (f.length != 4 || !fin(f[3]))) why = "STAGE_FINISH fields=" + f.length;
+                    else if ((f[2].equals("STAGE_DNF") || f[2].equals("STAGE_ABORT")) && f.length != 4) why = f[2] + " fields=" + f.length;
+                    else if ((f[2].equals("MARK_START") || f[2].equals("MARK_FINISH")) && (f.length != 6 || !allFin(f, 3, 5))) why = f[2] + " fields=" + f.length;
+                    else if (!KNOWN_E.contains(f[2])) why = "unknown event " + f[2];
                     break;
                 default:
                     why = "unknown row kind";

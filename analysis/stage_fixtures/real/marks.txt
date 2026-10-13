@@ -1,0 +1,6 @@
+# A stage cut out of the real Sepang recording (a circuit, but the stage code does not know the difference):
+# the marks are two of its GPS fixes, the drive is every fix between them, as a marking drive would give.
+# They are the fixes 5 s and 80 s after the third pass of the lap line.
+log data/sepang-2026-10-13/session_20261013_095638.csv
+start_fix_t_us 449244234
+finish_fix_t_us 524243647

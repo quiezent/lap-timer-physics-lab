@@ -1,0 +1,36 @@
+# case<TAB>name of the session file<TAB>run id of the 3rd run found in it. In the name, every UTF-16 code unit that is not printable ASCII, and the backslash, is written \uXXXX (lower-case hex)
+0	session_20261013_095638.csv	20261013_095638_3
+1	session_20261013_095638b.csv	20261013_095638b_3
+2	session_20261013_095638z.csv	20261013_095638z_3
+3	My Drive.csv	My_Drive-34655bdb_3
+4	a b.csv	a_b-10a3f9f2_3
+5	a_b.csv	a_b_3
+6	KKB to Fraser (1).csv	KKB_to_Fraser__1_-e0afe169_3
+7	session_x.csv	x_3
+8		run_3
+9	.csv	run_3
+10	session_.csv	run_3
+11	dir/sub/session_20261013_121500.csv	20261013_121500_3
+12	C:\u005cUsers\u005cme\u005cDownloads\u005crun 3.csv	run_3-cea4f997_3
+13	caf\u00e9 stage.csv	caf__stage-a7f03a62_3
+14	emoji \ud83d\ude97 run.csv	emoji____run-1256b96e_3
+15	lone\ud83dsurrogate.csv	lone_surrogate-21ff5406_3
+16	abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcd.csv	abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcd_3
+17	abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcde.csv	abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuv-1253fb1c_3
+18	ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKL.csv	ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUV-1fd65729_3
+19	abcdefghijklmnopqrstuvwxyzabcd abcdefghijklmnopqrstuvwxyzabcd.csv	abcdefghijklmnopqrstuvwxyzabcd_abcdefghijklmnopq-366a8b61_3
+20	session_a-b_c.CSV	a-b_c_CSV-423f4ebb_3
+21	weird,name;1.csv	weird_name_1-dd24a769_3
+22	x.csv.csv	x_csv-84b5b1a5_3
+23	session_session_1.csv	session_1_3
+24	UPPER_and_lower-123.csv	UPPER_and_lower-123_3
+25	trailing space .csv	trailing_space_-502ebc21_3
+26	tab\u0009here.csv	tab_here-a0c92419_3
+27	12345.csv	12345_3
+28	-.csv	-_3
+29	_.csv	__3
+30	\u0645\u0631\u062d\u0628\u0627.csv	_____-be020bf3_3
+31	session_\u00e9.csv	_-6c0b6c44_3
+32	no extension	no_extension-a8d63a17_3
+33	session_20261013_095638	20261013_095638_3
+34	a.csv/	run_3

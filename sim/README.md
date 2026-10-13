@@ -17,6 +17,7 @@ A caution that applies to everything here: the simulator is **my own model** of 
 | `events_test.py` | Tests the corner events (braking point, slowest speed, exit speed, throttle pick-up, peak braking) against the truth |
 | `stage1_test.py` | Tests the first stage of the engine (map, progress along the track, section cuts, laps) against the exact node times |
 | `causal_test.py`, `pooled_pred.py` | The "live" speed and progress filters and the lap-time predictor: error against the truth, pooled over sessions |
+| `simulate_stage.py` | (release 1.4) Monte Carlo for the **stage** timer: synthetic roads (a mountain road, hairpin roads), a new marking drive and a new stage for each case, driven runs with 1 Hz GPS and correlated noise, and the stage time measured against the true time between the lines. Cases: (a) rolling ends at 20 m/s, (b) standing start and braking stop, (c) the same parked 10 m short, (d) a start line moved 5 m, (e) a hairpin road with legs 30 m apart; extras `x` (no noise), `p` ((a) at 30 m/s), `h` (hairpin legs 30, 20, 16 and 12 m apart). `--quick` is a tenth of the runs. It imports `analysis/stage_compare.py`, **both written from `docs/stage-algorithm.md` alone** by a pass that never read the Android code (see the validation page for what it found). About 10 s: `python sim/simulate_stage.py [--quick] [--seed N] [--cases abcdephx]` |
 | `calibrated_lap.py` | Not a test of the engine: asks whether the point-mass physics reproduces the real lap when it is given what the real log showed (engine, drag, grip on a grid). Writes the two `model_*` tables in the report |
 
 `../physics/gt3_model.py` is the car model they all use.
@@ -38,6 +39,6 @@ The output of `bash sim/run_batch.sh 8` is stored in [`results/batch_b301-b308.t
 
 ## What would make this better
 
-- A simulator for **point-to-point stages** (see the roadmap, section 2), with known gate positions, so the stage timer and the effect of a start/finish line placed a few metres wrong can be tested with the truth in hand.
+- More for **point-to-point stages**: `simulate_stage.py` exists now, but its roads are my own idealisations (straights and arcs). A road traced from a real drive, with real traffic stops, tunnels and tree cover, would test more. The hairpin case found a real limit (tight stacked bends at a line, see `docs/stage-algorithm.md` section 9) that no other test had looked for.
 - Other circuits.
 - A "real driver" noise model fitted to more than one real session. My planted errors are simpler than real driving, which is part of why the lap predictor was weaker on the real session than on the simulated ones.

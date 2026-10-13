@@ -2,7 +2,7 @@
 
 **A phone lap timer, and a physics-first reading of a track day: what braking, cornering and acceleration say about where lap time is.**
 
-I'm Claude, an AI model made by Anthropic. I wrote this project with a driver over two days: an Android app that records a drive, and software that
+I'm Claude, an AI model made by Anthropic. I wrote this project with a driver: an Android app that records a drive, times laps and (since release 1.4) times **point-to-point road stages**, and software that
 reads the recording through the laws that govern a car. It covers one car (a Porsche 991.2 GT3), one circuit (Sepang) and, so far, **one real session**:
 13 October 2026, 15 laps, 44 minutes, from one phone. I have never sat in the car. What I know is what a phone could sense, plus physics, and
 everything I call a finding below was produced by code in this repository running on the CSV in this repository, so you can re-run it and check me.
@@ -14,11 +14,12 @@ everything I call a finding below was produced by code in this repository runnin
 | Part | State |
 |---|---|
 | Android recorder (`android/`, version 1.2) | Ran on a real phone at Sepang: 44 minutes, 118 Hz motion sensors, 1 Hz GPS, nothing lost |
-| Lap timer in the app (version 1.3) | Passes 140 automated checks on a PC (4 of them replay the real log's GPS fixes and reproduce its 15 lap times); **has not been run on a phone yet** |
-| Analysis (`analysis/`) | Runs on the real log: lap times, an "ultimate lap", deltas, a lap predictor, and the power-law report |
-| Coaching on the phone | **Not built.** The advice lives in the report; the next build would bring it to the screen (see below) |
-| iPhone app, other circuits, point-to-point stages | Not started. Ideas and a contract for contributors are below |
-| Data | One session. Every result is a hypothesis to test, not a verdict |
+| Lap timer in the app (version 1.3) | In 1.4 too. Passes automated checks on a PC (some replay the real log's GPS fixes and reproduce its 15 lap times); **has not been run on a phone yet** |
+| **Stages in the app (version 1.4)** | Mark the start and finish of a road by driving it once; after that the phone starts and stops recording at those lines by itself, keeps each drive as a run, and compares runs afterwards. On open roads it shows **no time or difference while the car moves**. 324 automated checks pass on a PC (315 without the real log); a second implementation of the method, written from the written method alone, reproduces all 28 stage and run test files byte for byte. **Never run on a phone, never driven on a road** |
+| Analysis (`analysis/`) | Runs on the real log: lap times, an "ultimate lap", deltas, a lap predictor, and the power-law report. `stage_compare.py` does stages on a computer |
+| Coaching on the phone | **Not built.** The advice lives in the report. Next release: load earlier Sepang sessions as the baseline and a Coaching button for the circuit (see below) |
+| iPhone app, other circuits | Not started. Ideas and a contract for contributors are below |
+| Data | One session at Sepang, no real stage yet. Every result is a hypothesis to test, not a verdict |
 
 ## The idea I started from
 
@@ -90,9 +91,12 @@ pedals, the steering, the traffic or the flags, and the driver knows things it d
 
 ## The app, today and next
 
-**Today (1.3):** records the raw signals to a CSV; shows the running lap, the last lap against the best, and the list of laps, timed from GPS at a built-in line on the Sepang main straight. It shows nothing from the report.
+**Today (1.4):** records the raw signals to a CSV; shows the running lap, the last lap against the best, and the list of laps, timed from GPS at a built-in line on the Sepang main straight; and has a **Stages** screen for roads. It shows nothing from the report.
 
-**What I'd build next, in this order:**
+**What the driver asked for next, and I will build in this order:** (1) *Sepang from earlier sessions*: load a previous Sepang session (or several) on the phone as the baseline, so that predictions and comparisons work from the first lap and not after a few laps of collecting data; (2) a **Coaching button** for the circuit: predicted lap time and a live delta against your own best-of-sessions lap from lap 1, with a debrief after the session
+(circuit only; stages on open roads stay as they are). Before or alongside: the two stage limits below.
+
+**The debrief idea, in the order I first wrote it:**
 
 1. **A pit-lane debrief screen.** After a session, on the phone, the report's essentials in a few cards: the ultimate lap and its gap, the three biggest gaps by corner, the braking-point spread at each heavy zone with the v² line, and the one question the data raises ("what was different in loops 7, 9, 10, 12 and 15 at T12?"). A driver's attention belongs on the road; coaching you read at a standstill is safe, and a live display is not something to add lightly.
 2. **A glanceable live delta** to the ultimate lap, as one number, only after the debrief is working.
@@ -111,11 +115,30 @@ A concept of the debrief, using the real Sepang numbers (**not built**, a sketch
   one-off losses ≥ 0.5 s: 10 of 180 corner-laps = 41% of time lost
 ```
 
+## Release 1.4: stages for the roads you drive
+
+The driver also drives roads that are used as rally stages (the Dash highways, KKB to Fraser, Fraser to Bentong) and asked for the app to mark a start and a finish once, then start and stop the logging on those lines on every later drive, save them as stages, and compare re-runs.
+I asked where they drive them. The answer was **open roads, normal traffic**, and that decided a lot: the app shows no time and no comparison while the car moves, and that is a rule the tests enforce, not a promise ([`docs/stages.md`](docs/stages.md)).
+
+| # | The objective I gave myself | How it went |
+|---|---|---|
+| 1 | Mark a start and a finish by driving the road once, without typing coordinates | **Built, never tried on a phone.** Park, press *Mark start*, drive, park, press *Mark finish*; the stage is built from the drive and the drive itself is scored as the first run |
+| 2 | On later drives, start and stop the logging on those lines by itself | **Built, never tried on a phone.** Arm a stage; the phone waits on the GPS alone and records from the approach to 5 s past the finish, then arms itself again. Whether Android lets it keep doing that with the screen off for an hour on a given phone is the main thing I could not test |
+| 3 | Keep the road safe: nothing to read or touch while moving | **Met, as far as a PC can show.** Words only while the car is not known to be stopped (a random walk of 4000 steps through the screens found no moving screen with a time on it); one beep at the start line, two at the finish, a low tone if a run is given up. I have not heard the beeps on a phone |
+| 4 | Save every drive as a run and compare re-runs: where was one ahead of the other | **Built.** Best, previous or first as the baseline; a graph of the difference along the road; sections; an "about the same" band that widens when the car was slow at a line |
+| 5 | Make the method checkable by someone who does not trust my code, and re-implementable (an iPhone version) | **Met, with a finding.** [`docs/stage-algorithm.md`](docs/stage-algorithm.md) gives every step and constant; a second pass of the same model, given only that page, wrote [`analysis/stage_compare.py`](analysis/stage_compare.py) and reproduced all 28 test files byte for byte. It also had to guess in five places (now written down) and found two limits (below) |
+| 6 | Say how accurate a stage time is | **Partly.** From simulations: about `3 m x sqrt(1/v_start² + 1/v_finish²)` seconds, so 0.1 s for fast rolling lines and 0.3 to 0.4 s on a slow mountain road. **No stopwatch or second device has checked it on a road** |
+
+**What I learned.** A stage time is only as good as the speed at its two lines: one metre of GPS error is `1/speed` seconds, so a standing start is three times worse than a flying one, and a twisty road is worse than a highway. The lines are 20 m inside the marks for that reason, and the independent simulation showed they come out 15 to 18 m of road from them, not 20 (the recorded route zigzags with the noise).
+The same independent pass found two limits that my own tests had not looked for: **a finish by braking to a stop can be scored "did not finish"** when the line ends up a few metres before the stopping place (28 of about 1500 simulated runs, 25 of them on one stage), and **tight stacked hairpins at a start or finish line** (legs closer than about 16 m) can make a run cross the line on the wrong leg and be wrong by tens of seconds. Both are documented in [`docs/stage-algorithm.md`](docs/stage-algorithm.md) section 9 and on the roadmap; the app does not yet warn about either.
+And a clean first pass of a second implementation proves less than it seems: the Python author broke their own code in 55 one-line ways, and the shared test files noticed 25; the other 30 are rules of the method that no test file holds anyone to yet (listed on the roadmap).
+
+**What I'd improve with more data:** drive a stage twice on a real road with a stopwatch or a second device at the lines, and a phone in the mount, and see whether the simulated accuracy holds; try it under tree cover and in a cutting; find out what a battery manager does to an armed phone with the screen off; let the user's real roads (not my synthetic ones) test the hairpin limit; and write the 30 missing test files.
+
 ## Try it
 
-**The app.** [`releases/`](releases) holds the APKs: `TrackLogger-1.2.apk` is the recorder that ran at Sepang, and
-`TrackLogger-1.3.apk` adds the lap timer (not yet run on a phone). Install steps, mounting and a ten-minute test before the track are in
-[`android/README.md`](android/README.md). Never touch the phone while driving.
+**The app.** [`releases/`](releases) holds the APKs: `TrackLogger-1.2.apk` is the recorder that ran at Sepang, `TrackLogger-1.3.apk` adds the lap timer, and `TrackLogger-1.4.apk` adds Stages (neither has run on a phone yet). Install steps, mounting and a ten-minute test before the track are in
+[`android/README.md`](android/README.md); how to use Stages, and the rule for open roads, are in [`docs/stages.md`](docs/stages.md). Never touch the phone while driving. Try a new release parked, and on a quiet road, before you rely on it.
 
 **The analysis** (Python 3; `pip install -r requirements.txt` installs numpy, scipy and matplotlib):
 
@@ -126,6 +149,8 @@ python analysis/powerlaws.py data/sepang-2026-10-13/session_20261013_095638.csv 
 
 The first makes the ultimate lap, deltas and predictor; the second makes the power-law report and the figures. Both are deterministic. Using your own file is the same
 command; the manual is [`docs/analysis-manual.md`](docs/analysis-manual.md).
+
+**The stages**, on a computer: `python analysis/stage_compare.py selftest` re-computes every expected result of the stage method (in about a second, from the standard library alone), and `build`, `score` and `compare` do what the app does with a recording you copied off the phone.
 
 ## Map of the repository
 
@@ -139,12 +164,15 @@ command; the manual is [`docs/analysis-manual.md`](docs/analysis-manual.md).
 | [`docs/analysis-manual.md`](docs/analysis-manual.md) | Using the analysis scripts |
 | [`docs/sepang-primer.md`](docs/sepang-primer.md) | A primer on the circuit and the car |
 | [`docs/log-format.md`](docs/log-format.md) | **The log format**: the contract any recorder (Android, iPhone, anything) must meet, and a checker, `analysis/check_log.py` |
-| [`docs/roadmap.md`](docs/roadmap.md) | What I'd build next: iPhone recorder, rally and road stages, more circuits, coaching on the phone |
+| [`docs/stages.md`](docs/stages.md) | **Stages (1.4)** in plain words: what you do, the rule for open roads, how accurate, what I did not check |
+| [`docs/stage-algorithm.md`](docs/stage-algorithm.md) | The stage method step by step with every constant, written so it can be re-implemented without my code; section 9 and 10: how well it works and how it was checked |
+| [`docs/stage-format.md`](docs/stage-format.md) | The stage and run files, the extra rows in the log, the backup zip |
+| [`docs/roadmap.md`](docs/roadmap.md) | What I'd build next: the stage limits, coaching on the phone, iPhone recorder, more circuits |
 | [`android/`](android) | The Android app, its tests and its build scripts (no Gradle needed) |
-| [`releases/`](releases) | The built APKs (1.2 and 1.3), checksums, and what I checked about them |
+| [`releases/`](releases) | The built APKs (1.2, 1.3 and 1.4), checksums, and what I checked about them |
 | [`ios/`](ios) | Placeholder for the iPhone recorder; not started |
-| [`analysis/`](analysis) | `analyze.py` (per-file channels), `ultimate.py` (ultimate lap, deltas, predictor), `powerlaws.py` (this project's power-law report), `check_log.py` (does a recording meet the format?), `regression_check.py` (did a change move any result?) |
-| [`physics/`](physics), [`sim/`](sim) | The point-mass GT3 model, and the simulator with planted driver errors that I used to test the engine ([`sim/README.md`](sim/README.md)) |
+| [`analysis/`](analysis) | `analyze.py` (per-file channels), `ultimate.py` (ultimate lap, deltas, predictor), `powerlaws.py` (this project's power-law report), `check_log.py` (does a recording meet the format?), `regression_check.py` (did a change move any result?), `test_reader.py` (does the reader take every row the app writes?), `stage_compare.py` (stages on a computer, and the second implementation of the stage method), `stage_fixtures/` (the shared test files for it) |
+| [`physics/`](physics), [`sim/`](sim) | The point-mass GT3 model, the simulator with planted driver errors that I used to test the engine, and `simulate_stage.py`, the Monte Carlo for the stage timer ([`sim/README.md`](sim/README.md)) |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to add to the project without breaking it |
 | [`NOTICE.md`](NOTICE.md) | Third-party data and tools |
 
@@ -154,17 +182,16 @@ This repository will keep changing, and I hope other people add to it. Two direc
 
 - **An iPhone version of the recorder.** Any recorder that writes the same CSV works with all the analysis. The contract is the file format
   ([`docs/log-format.md`](docs/log-format.md)), so an iOS app does not need to be a port of my Java: it needs to write the same rows.
-- **Rally and road stages with start and finish GPS points**, which are point-to-point rather than laps. That changes the timing, the alignment of runs, and the
-  analysis; a first design, including why the position of the lines matters much more for a stage than for a lap, is in
-  [`docs/roadmap.md`](docs/roadmap.md). Stages belong on closed roads and at permitted events.
+- **Stages on an iPhone**, and everything else about stages that is still open (two limits of the method I found, a real-road test, closed-road display behind its own switch): [`docs/roadmap.md`](docs/roadmap.md) section 2. The method is written so that it can be re-implemented without reading my Java:
+  start at [`docs/stage-algorithm.md`](docs/stage-algorithm.md) and hold your code to [`analysis/stage_fixtures`](analysis/stage_fixtures). **The rule for open roads stays**: while a stage is armed, recording or being marked and the car is not known to be stopped, no screen may show a time, a difference or a comparison, and nothing may prompt a driver to go faster.
 
 Also wanted: other circuits (a course file instead of a constant in `LapTimer.java`), the on-phone debrief, and real sessions from other drivers and cars.
 See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Limits, plainly
 
-One session, one phone, one car, one driver. No pedals, steering or traffic in the data. The corner positions come from open map data, not a survey. The 1.3 lap screen has
-not run on a phone. I have not compared lap times with a transponder. The advice in the report is a set of hypotheses for a driver to test cautiously, not instructions.
+One session, one phone, one car, one driver. No pedals, steering or traffic in the data. The corner positions come from open map data, not a survey. The 1.3 lap screen and the 1.4 stage screens have
+not run on a phone, and no stage has been driven on a real road; the stage accuracy figures are from simulations (two of them: mine, and one by a second pass of the same model that never saw the app's code). I have not compared lap times or stage times with a transponder or a stopwatch. The advice in the report is a set of hypotheses for a driver to test cautiously, not instructions.
 
 ## Licence
 
