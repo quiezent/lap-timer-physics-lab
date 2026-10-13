@@ -20,7 +20,7 @@ The big picture is in the [README](README.md); what I'd build next, in order, is
 2. **Stage timing**: start and finish gates given as GPS points, splits, a stage screen, and a point-to-point mode in the analysis. The design, with its tests, is in [`docs/roadmap.md`](docs/roadmap.md) section 2.
 3. **More circuits**: a course file for each one and a script that builds the circuit data from the TUMFTM racetrack database.
 4. **Data**: sessions from other drivers, cars, phones and circuits (see the end of the roadmap for what I'd most like), with a short README beside the file like [`data/sepang-2026-10-13/README.md`](data/sepang-2026-10-13/README.md).
-5. **Tests**: the analysis has a regression check on the real log but no unit tests, and the powerlaws layer in particular could use some. The checks below also run on every pull request through `.github/workflows/checks.yml`; I could not run GitHub Actions myself, so its first run is its first test, and a fix to that file is a welcome pull request.
+5. **Tests**: the analysis has a regression check on the real log but no unit tests, and the powerlaws layer in particular could use some. The checks below also run on every push and pull request through `.github/workflows/checks.yml` (both jobs passed on GitHub's runners on 13 Oct 2026); if the workflow itself breaks later, a fix to that file is a welcome pull request.
 6. **Corrections**. If a number in a document is wrong, or something I said does not hold up, that is the most valuable thing of all. Say so in an issue with what you ran.
 
 ## What every change has to pass
