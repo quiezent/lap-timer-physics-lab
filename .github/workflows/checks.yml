@@ -1,0 +1,42 @@
+# Runs the project's checks on every push to main and on every pull request.
+#
+# Each job runs the same command a contributor runs by hand (see CONTRIBUTING.md), so a failure here can be reproduced locally.
+# I could not run GitHub Actions from where I work, so this file has been checked against the commands, not against GitHub: the first
+# run is its first test. If a job fails for a reason that looks like the workflow rather than the code, fix the workflow.
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  android-recorder-and-lap-timer:
+    # 140 checks against fakes of the Android classes; needs only a JDK. The real Sepang log is replayed through the lap timer.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: App tests
+        run: JAVA_EXTRA=-Dreal.log=data/sepang-2026-10-13/session_20261013_095638.csv bash android/tests/run.sh all
+
+  analysis:
+    # The recording meets the log format, and the analysis still gives the committed results on the committed log.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install requirements
+        run: pip install -r requirements.txt
+      - name: Log format check on the committed session
+        run: python analysis/check_log.py data/sepang-2026-10-13/session_20261013_095638.csv
+      - name: Regression check
+        run: python analysis/regression_check.py
