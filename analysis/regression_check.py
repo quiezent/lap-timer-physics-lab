@@ -14,6 +14,9 @@ The runs are deterministic, so on the same library versions everything is identi
 last printed digit, so by default a number counts as equal when it is within one unit of the last digit that is printed (numbers.json: within
 2e-5 relative). --strict asks for exact equality instead.
 
+Where a result only differs in the last printed digit the output says how many cells did. Inside GitHub Actions the failures (and those
+last-digit differences) are also written as workflow annotations, so they can be read from the run page and the API without the log.
+
 Exit status 0 if nothing moved, 1 if anything did. If you changed the analysis ON PURPOSE, re-run the two scripts into reports/sepang-2026-10-13/
 (see docs/analysis-manual.md), commit the new outputs with your change, and say in the pull request which numbers moved and why.
 Takes about two minutes. Needs numpy, scipy and matplotlib (requirements.txt).
@@ -32,6 +35,16 @@ REPO = os.path.dirname(HERE)
 SESSION = os.path.join(REPO, "data", "sepang-2026-10-13", "session_20261013_095638.csv")
 COMMITTED = os.path.join(REPO, "reports", "sepang-2026-10-13")
 MAX_SHOWN = 8
+MAX_ANNOTATED = 12                              # lines per GitHub annotation
+
+
+def annotate(level, title, lines):
+    """One GitHub Actions workflow command (shown on the run page); does nothing outside Actions."""
+    if os.environ.get("GITHUB_ACTIONS") != "true" or not lines:
+        return
+    esc = lambda t: t.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    esc_prop = lambda t: esc(t).replace(":", "%3A").replace(",", "%2C")
+    print("::%s title=%s::%s" % (level, esc_prop(title), esc("\n".join(lines))), flush=True)
 
 
 def cell_equal(a, b, strict):
@@ -150,12 +163,17 @@ def main():
         checks.append(("tables/" + name, p, os.path.join(out, "pl", "tables", name), "csv"))
 
     bad = 0
+    noisy = 0
+    errors, notices = [], []
     for label, old, new, kind in checks:
         if not os.path.exists(new):
             print("FAIL  %s: the script did not write it" % label)
+            errors.append("%s: the script did not write it" % label)
             bad += 1
             continue
-        diffs = compare_json(old, new, args.strict) if kind == "json" else compare_csv(old, new, args.strict)
+        compare = compare_json if kind == "json" else compare_csv
+        diffs = compare(old, new, args.strict)
+        exact = diffs if args.strict else compare(old, new, True)
         if diffs:
             bad += 1
             print("FAIL  %s: %d difference(s)" % (label, len(diffs)))
@@ -163,9 +181,20 @@ def main():
                 print("        " + d)
             if len(diffs) > MAX_SHOWN:
                 print("        ... and %d more" % (len(diffs) - MAX_SHOWN))
+            errors.append("%s: %d difference(s)" % (label, len(diffs)))
+            errors.extend("    " + d for d in diffs[:MAX_SHOWN])
+        elif exact:
+            noisy += 1
+            print("PASS  %s (%d value(s) differ in the last printed digit)" % (label, len(exact)))
+            notices.append("%s: %d value(s) differ in the last printed digit" % (label, len(exact)))
+            notices.extend("    " + d for d in exact[:4])
         else:
             print("PASS  " + label)
-    print("\n%d of %d outputs unchanged%s" % (len(checks) - bad, len(checks), "" if bad == 0 else "; %d moved" % bad))
+    print("\n%d of %d outputs unchanged%s%s" % (len(checks) - bad - noisy, len(checks),
+                                               "" if not noisy else "; %d within the last printed digit" % noisy,
+                                               "" if bad == 0 else "; %d moved" % bad))
+    annotate("error", "regression_check: results moved", errors[:MAX_ANNOTATED * 4])
+    annotate("notice", "regression_check: last-digit differences", notices[:MAX_ANNOTATED * 4])
     if args.keep:
         print("new outputs kept in " + out)
     return 1 if bad else 0
