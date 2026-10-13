@@ -10,16 +10,17 @@ and compares what they write with what is committed in reports/sepang-2026-10-13
     engine/ultimate_sections.csv, engine/ultimate_corners.csv, engine/session_*_analysis/{lap_table,corner_table,channels}.csv
     numbers.json (every figure the report quotes) and tables/*.csv (except the two model_* tables, which sim/calibrated_lap.py writes)
 
-The runs are deterministic, so on the same library versions everything is identical. On other versions of numpy/scipy a value can move in its
-last printed digit, so by default a number counts as equal when it is within one unit of the last digit that is printed (numbers.json: within
-2e-5 relative). --strict asks for exact equality instead.
+The runs are deterministic, so on the same library versions and the same kind of machine everything is identical. On other versions of
+numpy/scipy, or on another CPU (a GitHub runner gave different last bits from the machine that made the committed files), a value can move in
+its last bits or its last printed digit, so by default a number counts as equal when it is within one unit of the last digit that is printed
+and within 1e-9 relative (numbers.json: within 2e-5 relative). --strict asks for exact equality instead.
 
 Where a result only differs in the last printed digit the output says how many cells did. Inside GitHub Actions the failures (and those
 last-digit differences) are also written as workflow annotations, so they can be read from the run page and the API without the log.
 
 Exit status 0 if nothing moved, 1 if anything did. If you changed the analysis ON PURPOSE, re-run the two scripts into reports/sepang-2026-10-13/
 (see docs/analysis-manual.md), commit the new outputs with your change, and say in the pull request which numbers moved and why.
-Takes about two minutes. Needs numpy, scipy and matplotlib (requirements.txt).
+Takes about 40 seconds. Needs numpy, scipy and matplotlib (requirements.txt).
 """
 import argparse
 import csv
@@ -62,7 +63,9 @@ def cell_equal(a, b, strict):
     if "e" in a.lower():                       # 1.2e-04 style: compare relatively
         return abs(x - y) <= 1e-2 * max(abs(x), abs(y), 1e-300)
     decimals = len(a.split(".")[1]) if "." in a else 0
-    return abs(x - y) <= 1.0001 * 10 ** (-decimals)
+    # one unit in the last printed digit, but never tighter than 1e-9 relative: a cell printed with 15 decimals is a raw double, and
+    # two machines can differ in its last bits (this happened on a GitHub runner) without anything having changed
+    return abs(x - y) <= max(1.0001 * 10 ** (-decimals), 1e-9 * max(abs(x), abs(y)))
 
 
 def compare_csv(path_old, path_new, strict):
