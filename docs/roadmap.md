@@ -71,7 +71,7 @@ Most of the machinery carries over; what changes:
 ### Steps and tests
 
 1. The course file format and a reader in Java and Python (`analysis/course.py`).
-2. `GateTimer`, and `LapTimer` rebuilt on it with the existing 140 checks still passing.
+2. `GateTimer`, and `LapTimer` rebuilt on it with the existing checks (136, or 140 with the real log replayed) still passing.
 3. `StageTimer` and a stage screen (course picker, armed, running time, splits, finish, delta against the best run).
 4. The new `E` rows in [`log-format.md`](log-format.md) and in the analysis.
 5. A point-to-point mode in `ultimate.py` and `powerlaws.py`.

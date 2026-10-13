@@ -27,7 +27,8 @@ The big picture is in the [README](README.md); what I'd build next, in order, is
 
 ```
 # the Android recorder and lap timer (needs only a JDK, 8 or newer; no Android SDK)
-bash android/tests/run.sh all                    # 140 required checks; all must pass
+JAVA_EXTRA=-Dreal.log=data/sepang-2026-10-13/session_20261013_095638.csv bash android/tests/run.sh all
+                                                 # 140 required checks, all must pass (136 if you leave out the real-log replay)
 
 # any recorder (Android, iPhone, anything else) against the format contract
 python analysis/check_log.py path/to/session.csv  # no FAIL lines (a WARN is explained in the output)

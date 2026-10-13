@@ -5,7 +5,7 @@ means passed on the tests I describe, no more.
 
 ## In one paragraph
 
-The **app's recorder** has run on a real phone once (a 44-minute Sepang session) and passes 140 automated checks on a PC. The **analysis** was built and tuned on simulated sessions with known
+The **app's recorder** has run on a real phone once (a 44-minute Sepang session) and its code passes 140 automated checks on a PC (136, and 4 that replay the real log's GPS fixes through the lap timer). The **analysis** was built and tuned on simulated sessions with known
 answers, then met its first real log and had to change. Against the raw GPS in that log, lap and section times, slowest speeds and total speed lost under braking held up; exit speeds,
 braking points and throttle pick-up are rough. There is **no ground truth yet** (no transponder, no car data). The 1.3 lap screen has **not been run on a phone**.
 
@@ -89,8 +89,8 @@ other circuits, tyre or fuel drift, clock jumps in a recording, or the Android c
 
 ## 4. The app
 
-Run on a PC against fakes of the Android classes that I wrote (`android/tests`, needs only a JDK; `bash android/tests/run.sh all`): **140 required checks, all passing**, and every extra cleanup probe passing too
-(re-run from this repository on 13 Oct 2026; with `JAVA_EXTRA=-Dreal.log=<csv>` it also replays the real log's GPS fixes through the lap timer and reproduces the 15 lap times of an independent calculation). They cover the file format and row counts,
+Run on a PC against fakes of the Android classes that I wrote (`android/tests`, needs only a JDK; `bash android/tests/run.sh all`): **136 required checks, all passing**, and every extra cleanup probe passing too; with `JAVA_EXTRA=-Dreal.log=<csv>` it also replays the real log's GPS fixes through the lap timer and reproduces the 15 lap times of an independent calculation, which makes **140** checks
+(re-run from a fresh clone of this repository on 13 Oct 2026: 136 without the replay, 140 with it). They cover the file format and row counts,
 100 Hz timing, the calibration (also with an odd sensor clock, and with too little data), write errors and a full disk, 120 repeated stop cycles with a backlog, START pressed during a save, double taps, the system tearing the service down,
 failed exports leaving no half-written file, the wake lock being released exactly once, and, for 1.3, the lap timer: lap times and the `LAP` rows on a simulated drive, a second session starting clean, and a drive that never passes the line.
 The screen code (`MainActivity`), including the lap display, is **not** covered.

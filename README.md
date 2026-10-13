@@ -14,7 +14,7 @@ everything I call a finding below was produced by code in this repository runnin
 | Part | State |
 |---|---|
 | Android recorder (`android/`, version 1.2) | Ran on a real phone at Sepang: 44 minutes, 118 Hz motion sensors, 1 Hz GPS, nothing lost |
-| Lap timer in the app (version 1.3) | Passes 140 automated checks on a PC and reproduces the real log's 15 lap times; **has not been run on a phone yet** |
+| Lap timer in the app (version 1.3) | Passes 140 automated checks on a PC (4 of them replay the real log's GPS fixes and reproduce its 15 lap times); **has not been run on a phone yet** |
 | Analysis (`analysis/`) | Runs on the real log: lap times, an "ultimate lap", deltas, a lap predictor, and the power-law report |
 | Coaching on the phone | **Not built.** The advice lives in the report; the next build would bring it to the screen (see below) |
 | iPhone app, other circuits, point-to-point stages | Not started. Ideas and a contract for contributors are below |
@@ -113,7 +113,7 @@ A concept of the debrief, using the real Sepang numbers (**not built**, a sketch
 
 ## Try it
 
-**The app.** [`releases/`](releases) holds the APKs (also under GitHub Releases): `TrackLogger-1.2.apk` is the recorder that ran at Sepang, and
+**The app.** [`releases/`](releases) holds the APKs: `TrackLogger-1.2.apk` is the recorder that ran at Sepang, and
 `TrackLogger-1.3.apk` adds the lap timer (not yet run on a phone). Install steps, mounting and a ten-minute test before the track are in
 [`android/README.md`](android/README.md). Never touch the phone while driving.
 

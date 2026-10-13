@@ -2,7 +2,7 @@
 
 | File | What it is | Status |
 |---|---|---|
-| [`TrackLogger-1.3.apk`](TrackLogger-1.3.apk) | The recorder plus the lap timer: running lap, last lap against best, the list of laps, and a `LAP` row in the log for each pass of the line. The line is built in and is for Sepang only | Passed 140 automated checks on a PC. **The lap screen has not been run on a phone yet.** If you try it, please say what it did |
+| [`TrackLogger-1.3.apk`](TrackLogger-1.3.apk) | The recorder plus the lap timer: running lap, last lap against best, the list of laps, and a `LAP` row in the log for each pass of the line. The line is built in and is for Sepang only | Passed 140 automated checks on a PC (136, and 4 that replay the real log's GPS fixes through the timer). **The lap screen has not been run on a phone yet.** If you try it, please say what it did |
 | [`TrackLogger-1.2.apk`](TrackLogger-1.2.apk) | The recorder alone, without lap times | Ran at Sepang on 13 Oct 2026: a Galaxy S25 on Android 16, 44 minutes, no data lost. It wrote the log in [`../data/sepang-2026-10-13/`](../data/sepang-2026-10-13) |
 | [`TrackLogger-1.2-source.zip`](TrackLogger-1.2-source.zip) | The source that built 1.2, as it was then (it also holds the older copy of `analyze.py` from that day: the current analysis is in [`../analysis`](../analysis)) | A snapshot, for the record |
 | [`SHA256SUMS`](SHA256SUMS) | Checksums of the three files above | `sha256sum -c SHA256SUMS` |

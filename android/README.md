@@ -11,8 +11,8 @@ The phone app. It does two jobs:
 It does not yet show any of the coaching ideas from the report. That would be the next build (see the top-level README).
 
 **Status.** Version 1.2 (the recorder) ran on a real phone at Sepang on 13 Oct 2026: a Samsung Galaxy S25 on Android 16, 44 minutes, no data loss.
-Version 1.3 adds the lap timer. It passed 140 automated checks on a PC against a simulated Android, and replaying the real log's GPS fixes through
-it reproduces the 15 lap times of an independent calculation, but **the 1.3 lap screen has not been run on a phone yet**. If you try it, please open an
+Version 1.3 adds the lap timer. It passed 140 automated checks on a PC against a simulated Android (136 of them need nothing else; the other 4 replay the real log's GPS fixes through
+the timer and reproduce the 15 lap times of an independent calculation), but **the 1.3 lap screen has not been run on a phone yet**. If you try it, please open an
 issue and say what the screen did.
 
 Needs Android 10 or later, a GPS and an accelerometer; a gyro is strongly recommended. The app has no internet permission.
@@ -24,14 +24,14 @@ Needs Android 10 or later, a GPS and an accelerometer; a gyro is strongly recomm
 | `src/app/tracklog/Exporter.java` | copies the finished file to Downloads |
 | `src/app/tracklog/LapTimer.java` | line crossing, lap times (the Sepang line is a constant at the top of this file) |
 | `src/app/tracklog/MainActivity.java` | the screen |
-| `tests/` | the 140-check harness and the fakes of the Android classes it runs against (needs only a JDK): `tests/run.sh` |
+| `tests/` | the harness (136 checks, 140 with the real log replayed) and the fakes of the Android classes it runs against (needs only a JDK): `tests/run.sh` |
 | `build.sh`, `fetch_tools.sh` | build without Gradle or Android Studio (section 6) |
-| `../releases/TrackLogger-1.3.apk` | the built app (also under GitHub Releases) |
+| `../releases/TrackLogger-1.3.apk` | the built app, with a second APK (1.2) and checksums |
 
 
 ## 1. Install the app
 
-1. Get `TrackLogger-1.3.apk` onto the phone (download it from this repository's Releases page, or `releases/` in the repo; or Drive, email to yourself, USB...).
+1. Get `TrackLogger-1.3.apk` onto the phone (open it in the `releases/` folder of this repository on GitHub and use *Download raw file*, or Drive, email to yourself, USB...).
    **Updating from 1.2:** install it over the old one (same signing key, higher version number); the permissions and the
    recordings stay. Finish and save any running session first: installing stops the app.
    The APK in this repository is signed with the key I generated when I built 1.2. That key is private and is not in the repository, so an APK you build
