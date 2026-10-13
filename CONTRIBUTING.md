@@ -20,7 +20,7 @@ The big picture is in the [README](README.md); what I'd build next, in order, is
 2. **Stage timing**: start and finish gates given as GPS points, splits, a stage screen, and a point-to-point mode in the analysis. The design, with its tests, is in [`docs/roadmap.md`](docs/roadmap.md) section 2.
 3. **More circuits**: a course file for each one and a script that builds the circuit data from the TUMFTM racetrack database.
 4. **Data**: sessions from other drivers, cars, phones and circuits (see the end of the roadmap for what I'd most like), with a short README beside the file like [`data/sepang-2026-10-13/README.md`](data/sepang-2026-10-13/README.md).
-5. **Tests**: the analysis has a regression check on the real log but no unit tests, and the powerlaws layer in particular could use some. The checks below also run on every push and pull request through `.github/workflows/checks.yml` (both jobs passed on GitHub's runners on 13 Oct 2026); if the workflow itself breaks later, a fix to that file is a welcome pull request.
+5. **Tests**: the analysis has a regression check on the real log but no unit tests, and the powerlaws layer in particular could use some. The checks below also run on every push and pull request through `.github/workflows/checks.yml` (both jobs pass on GitHub's runners as of 13 Oct 2026); if the workflow itself breaks later, a fix to that file is a welcome pull request.
 6. **Corrections**. If a number in a document is wrong, or something I said does not hold up, that is the most valuable thing of all. Say so in an issue with what you ran.
 
 ## What every change has to pass
@@ -38,7 +38,7 @@ pip install -r requirements.txt
 python analysis/regression_check.py              # re-runs ultimate.py and powerlaws.py and compares every output with reports/sepang-2026-10-13/
 ```
 
-`regression_check.py` prints PASS or FAIL for each output file and exits with 1 if anything moved. The runs are deterministic, so on the same library versions everything is identical; on other versions a number can move in its last printed digit, which the check tolerates (`--strict` does not).
+`regression_check.py` prints PASS or FAIL for each output file and exits with 1 if anything moved. The runs are deterministic, so on the same library versions and the same kind of machine everything is identical; on other versions or another CPU a number can move in its last bits or last printed digit, which the check tolerates (`--strict` does not).
 A result that moves more than that (the ultimate lap 2:31.78 ± 0.07, the cornering exponent 0.50, the braking R² 0.973 are the headline ones) means something changed in the analysis, and a change like that needs to be explained in the pull request, not just committed.
 If you change the analysis on purpose, re-run both scripts into [`reports/sepang-2026-10-13/`](reports/sepang-2026-10-13/) (the commands are in `docs/analysis-manual.md` and at the end of the report), commit the regenerated files in the same pull request, and say which numbers moved and why.
 The check catches changes, not mistakes: it cannot tell a better analysis from a worse one, only a different one.

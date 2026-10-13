@@ -1,8 +1,9 @@
 # Runs the project's checks on every push to main and on every pull request.
 #
 # Each job runs the same command a contributor runs by hand (see CONTRIBUTING.md), so a failure here can be reproduced locally.
-# The first run on GitHub's runners (13 Oct 2026, commit 5a3971f) passed both jobs. If a job fails later for a reason that looks like
-# the workflow rather than the code (an action version, a runner image), fix the workflow.
+# Passing on GitHub's runners as of commit c7f5631 (13 Oct 2026). Two runs before that failed because one table is written with full
+# double precision and the runner's CPU rounded its last bits differently; regression_check.py now ignores that. If a job fails later
+# for a reason that looks like the workflow rather than the code (an action version, a runner image), fix the workflow.
 name: checks
 
 on:

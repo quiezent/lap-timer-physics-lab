@@ -92,7 +92,7 @@ I would start with (b), because it tests whether the screen is useful before the
 
 ## 5. Engineering
 
-- **Automated tests in CI.** `.github/workflows/checks.yml` runs the Java harness (it needs only a JDK), `check_log.py` and `analysis/regression_check.py` (the analysis must still give the committed results on the committed log) on every push and pull request. Its first run on GitHub's runners (13 Oct 2026) passed both jobs. Still missing: unit tests for the power-law layer, a simulator smoke test that is quick enough for CI, and the same checks for an iPhone port.
+- **Automated tests in CI.** `.github/workflows/checks.yml` runs the Java harness (it needs only a JDK), `check_log.py` and `analysis/regression_check.py` (the analysis must still give the committed results on the committed log) on every push and pull request. It passes on GitHub's runners (13 Oct 2026); the regression check first failed there on last-bit float noise from a different CPU, and was changed to tolerate that. Still missing: unit tests for the power-law layer, a simulator smoke test that is quick enough for CI, and the same checks for an iPhone port.
 - **A format version in the header** (`# format,1`) written by recorders and checked by the analysis, so the format can grow without breaking old files.
 - **Shared test vectors** (GPS fixes and the lap times they must give) for the timers on each platform.
 - **A licence (owner).** Contributors need to know the terms. See the top-level README.
