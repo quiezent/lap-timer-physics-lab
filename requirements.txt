@@ -1,0 +1,6 @@
+# The analysis (analysis/, physics/, sim/) needs Python 3 and these three packages.
+# Everything here was written and run with Python 3.13, numpy 2.5.3, scipy 1.18.1 and matplotlib 3.11.2.
+# Other versions are untested; the lower bounds below are my guess, not something I ran. Tell me if one fails.
+numpy>=1.24
+scipy>=1.10
+matplotlib>=3.7

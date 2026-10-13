@@ -1,0 +1,25 @@
+# The app's signing key is private. build.sh makes one on first use; it must never be committed.
+*.jks
+*.keystore
+*.p12
+
+# Build output and downloaded build tools
+android/build/
+android/tools/
+tools/
+android/tests/out/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Work directories the analysis scripts create
+reports/**/_work/
+sim/out/
+ultimate_out/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
