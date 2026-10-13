@@ -20,7 +20,7 @@ The big picture is in the [README](README.md); what I'd build next, in order, is
 2. **Stage timing**: start and finish gates given as GPS points, splits, a stage screen, and a point-to-point mode in the analysis. The design, with its tests, is in [`docs/roadmap.md`](docs/roadmap.md) section 2.
 3. **More circuits**: a course file for each one and a script that builds the circuit data from the TUMFTM racetrack database.
 4. **Data**: sessions from other drivers, cars, phones and circuits (see the end of the roadmap for what I'd most like), with a short README beside the file like [`data/sepang-2026-10-13/README.md`](data/sepang-2026-10-13/README.md).
-5. **Tests**: the analysis has no automated regression test yet; CI that runs the checks below on every pull request does not exist yet.
+5. **Tests**: the analysis has a regression check on the real log but no unit tests, and the powerlaws layer in particular could use some. The checks below also run on every pull request through `.github/workflows/checks.yml`; I could not run GitHub Actions myself, so its first run is its first test, and a fix to that file is a welcome pull request.
 6. **Corrections**. If a number in a document is wrong, or something I said does not hold up, that is the most valuable thing of all. Say so in an issue with what you ran.
 
 ## What every change has to pass
@@ -33,18 +33,17 @@ JAVA_EXTRA=-Dreal.log=data/sepang-2026-10-13/session_20261013_095638.csv bash an
 # any recorder (Android, iPhone, anything else) against the format contract
 python analysis/check_log.py path/to/session.csv  # no FAIL lines (a WARN is explained in the output)
 
-# the analysis, on the committed real log
+# the analysis, on the committed real log (about 40 seconds)
 pip install -r requirements.txt
-python analysis/ultimate.py  data/sepang-2026-10-13/session_20261013_095638.csv --out /tmp/ultimate
-python analysis/powerlaws.py data/sepang-2026-10-13/session_20261013_095638.csv --out /tmp/powerlaws
+python analysis/regression_check.py              # re-runs ultimate.py and powerlaws.py and compares every output with reports/sepang-2026-10-13/
 ```
 
-After the last two, compare with what is committed in [`reports/sepang-2026-10-13/`](reports/sepang-2026-10-13/) (`numbers.json` and the tables).
-The run is deterministic, so on the same library versions the numbers should be identical; on other versions a last digit may move.
-A headline number that moves more than that (the ultimate lap 2:31.78 ± 0.07, the cornering exponent 0.50, the braking R² 0.973) means something changed in the analysis, and a change like that needs to be explained in the pull request, not just committed.
-If you change the analysis on purpose, re-run it on the committed log, commit the regenerated `reports/` files in the same pull request, and say which numbers moved and why.
+`regression_check.py` prints PASS or FAIL for each output file and exits with 1 if anything moved. The runs are deterministic, so on the same library versions everything is identical; on other versions a number can move in its last printed digit, which the check tolerates (`--strict` does not).
+A result that moves more than that (the ultimate lap 2:31.78 ± 0.07, the cornering exponent 0.50, the braking R² 0.973 are the headline ones) means something changed in the analysis, and a change like that needs to be explained in the pull request, not just committed.
+If you change the analysis on purpose, re-run both scripts into [`reports/sepang-2026-10-13/`](reports/sepang-2026-10-13/) (the commands are in `docs/analysis-manual.md` and at the end of the report), commit the regenerated files in the same pull request, and say which numbers moved and why.
+The check catches changes, not mistakes: it cannot tell a better analysis from a worse one, only a different one.
 
-For the simulator (it has the exact truth, so it is the strongest test of the engine): `bash sim/run_batch.sh 8`, described in [`sim/README.md`](sim/README.md). It takes about 50 seconds per session.
+For the simulator (it has the exact truth, so it is the strongest test of the engine): `bash sim/run_batch.sh 8`, described in [`sim/README.md`](sim/README.md). It takes about a minute per session.
 
 ## Style, in short
 

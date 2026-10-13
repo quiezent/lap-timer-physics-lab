@@ -12,7 +12,7 @@ A caution that applies to everything here: the simulator is **my own model** of 
 | `simulate_sepang.py` | Drives a perfect lap (a quasi-steady-state solver: ideal line, every corner at the grip limit) and flying laps with planted errors in four numbers per corner (braking effort, corner speed, throttle pick-up, line), then writes the app's CSV, with GPS delay, noise, dropouts and outliers, a random mounting angle, and `*_truth.npz` with the exact lap profiles and per-corner truth. Options: `--seed --laps --gps-sigma --gps-lag --dropout ...` |
 | `validate_engine.py` | Runs `analysis/ultimate.py` on a simulated session and compares it with the truth: section times, the ultimate lap and its error bar, the choice of pieces against the best mix, the speed fusion, the lap predictor |
 | `run_val.py` | Command line for the above: `python sim/run_val.py TAG session.csv [more.csv ...]` writes `result_TAG.json` next to the CSV |
-| `run_batch.sh` | `bash sim/run_batch.sh N` simulates N fresh sessions (seeds 301 upward, 6 to 10 laps, GPS error 2 to 4 m), judges each, and prints the table that `docs/validation.md` quotes. About 50 s per session |
+| `run_batch.sh` | `bash sim/run_batch.sh N` simulates N fresh sessions (seeds 301 upward, 6 to 10 laps, GPS error 2 to 4 m), judges each, and prints the table that `docs/validation.md` quotes. About a minute per session |
 | `summarise_batch.py` | Builds that table from the `result_*.json` files |
 | `events_test.py` | Tests the corner events (braking point, slowest speed, exit speed, throttle pick-up, peak braking) against the truth |
 | `stage1_test.py` | Tests the first stage of the engine (map, progress along the track, section cuts, laps) against the exact node times |
@@ -33,6 +33,8 @@ python sim/run_val.py S7 /tmp/s7.csv
 ```
 
 The scripts find the analysis in `../analysis` by default; set `ENGINE_DIR` to test another copy of it.
+
+The output of `bash sim/run_batch.sh 8` is stored in [`results/batch_b301-b308.txt`](results/batch_b301-b308.txt). It is what `docs/validation.md` quotes, and a second run from a fresh clone gave the same numbers.
 
 ## What would make this better
 

@@ -1,0 +1,18 @@
+# Output of:  bash sim/run_batch.sh 8
+# Run on 13 Oct 2026 from a fresh clone of commit 28793c9 (Python 3.13.16, numpy 2.5.3, scipy 1.18.1).
+# Seeds 301 to 308. The simulator was asked for 8, 6, 10, 8, 7, 9, 8 and 10 flying laps; the "laps" column is the number of
+# loops the engine found, which is one more in each session. The numbers match the table in docs/validation.md.
+# Columns: section-time error (rms); the ultimate lap's error against the truth; the printed error bar; their ratio; how much worse
+# the chosen pieces were than the best mix a search found; the fastest usable loop against the true fastest loop.
+#
+session     laps  sect rms claim err       bar   err/bar    regret fast loop
+b301.csv       9    0.040s   +0.010s    0.092s      0.11    0.036s   -0.005s
+b302.csv       7    0.049s   -0.011s    0.111s     -0.10    0.071s   -0.024s
+b303.csv      11    0.040s   -0.095s    0.088s     -1.07    0.053s   -0.049s
+b304.csv       9    0.065s   +0.031s    0.132s      0.24    0.194s   +0.012s
+b305.csv       8    0.041s   -0.021s    0.122s     -0.17    0.059s   +0.418s
+b306.csv      10    0.047s   -0.023s    0.102s     -0.23    0.050s   +0.024s
+b307.csv       9    0.064s   -0.020s    0.161s     -0.12    0.005s   +0.064s
+b308.csv      11    0.050s   -0.095s    0.138s     -0.69    0.053s   +0.038s
+
+8 sessions: section-time error 0.050 s rms; ultimate-lap claim error -0.028 s mean, 0.051 s rms (0.095 s worst); error / printed bar rms 0.47; piece choice 0.065 s worse than the best mix on average (worst 0.194 s); fastest usable loop differs from the true fastest loop by 0.031 s (median), 0.418 s (largest; a loop the engine could not use is the usual cause)

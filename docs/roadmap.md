@@ -11,7 +11,7 @@ What I would build next, in the order I would build it, and what each piece need
 - Conversions: iOS reports acceleration in g with the opposite sign, so `A = -9.80665 × CoreMotion value` (details and the other fields are in the "iPhone recorder" notes of the format page).
 - The same safety posture: mounted rigidly, no interaction while driving.
 
-**Acceptance.** `python analysis/check_log.py session.csv` reports no FAIL; a phone lying flat reads +9.81 on z; `python analysis/ultimate.py` and `analysis/powerlaws.py` run on it (with at least four clean loops); on a drive that has also been recorded by the Android app, the lap times agree.
+**Acceptance.** `python analysis/check_log.py session.csv` reports no FAIL; a phone lying flat reads +9.81 on z; `python analysis/analyze.py` runs on any drive of it, with `Forward axis ... R2` near 1.00; on a Sepang drive with enough clean loops `analysis/ultimate.py` and `analysis/powerlaws.py` run too; on a drive that has also been recorded by the Android app, the lap times agree.
 Start in [`../ios/`](../ios). Please share a first real file early: the checks in `check_log.py` came from my guesses about what goes wrong, and a real iPhone file is the best test of them.
 
 **Later.** Port the gate timer (section 2) with shared test vectors so that Android and iOS compute the same lap times from the same GPS fixes.
@@ -60,7 +60,7 @@ Even then, the random error of each GPS crossing (roughly the reported accuracy 
 ### Analysis for stages
 
 Most of the machinery carries over; what changes:
-- **No loop.** Runs are aligned by distance along the route from the start gate. The route comes from the best run without a GPS gap, as the circuit map does today; the engine's self-referenced mode (corners labelled C1, C2... from the laps) already exists and is the starting point.
+- **No loop.** Runs are aligned by distance along the route from the start gate. The route comes from the best run without a GPS gap, as the circuit map does today; `analyze.py` already finds and labels corners from the laps themselves (C1, C2, ...), which is the starting point.
 - **Sections** are cut at the long straights as now, or at fixed distances where the road has none, and the "ultimate stage" is built the same way (best section of each kind, speed carried over each join, shrunk toward typical, with an error bar).
 - **The power-law report** (braking in speed², corner speed against radius, what an exit is worth, where the time went) runs unchanged on the corners found in the route.
 - **Runs are rare.** A stage may be driven once per event, so the comparison is across runs and days, where tyres, weather and surface change. The loss-concentration and ultimate-stage ideas need care there, and the first sessions will mostly be a driver against their own earlier runs.
@@ -81,7 +81,7 @@ Most of the machinery carries over; what changes:
 
 ## 3. More circuits
 
-Today the circuit is Sepang, from one data set (see [`../NOTICE.md`](../NOTICE.md)). The engine has a self-referenced mode that needs no model. A proper step: a course file for each circuit (the gate, the corner list, the straights) and a small script that builds
+Today the circuit is Sepang, from one data set (see [`../NOTICE.md`](../NOTICE.md)). `analyze.py` already labels the corners itself from the laps (C1, C2, ...) without a circuit model, but I have not run `ultimate.py` or `powerlaws.py` on another circuit, only on relocated and mirrored copies of Sepang. A proper step: a course file for each circuit (the gate, the corner list, the straights) and a small script that builds
 `sepang_model`-style data for another circuit from the TUMFTM racetrack database, which covers many circuits.
 
 ## 4. The coaching on the phone
@@ -92,7 +92,7 @@ I would start with (b), because it tests whether the screen is useful before the
 
 ## 5. Engineering
 
-- **Automated tests in CI.** The Java harness needs only a JDK. The analysis needs a regression test on the committed CSV (the ultimate lap, the cornering exponent and the braking R² should not move). A GitHub Actions workflow running both on every pull request. (The first version of this repository was pushed without one.)
+- **Automated tests in CI.** `.github/workflows/checks.yml` runs the Java harness (it needs only a JDK), `check_log.py` and `analysis/regression_check.py` (the analysis must still give the committed results on the committed log) on every push and pull request. I could not run GitHub Actions from where I work, so the file has been checked against the commands, not against GitHub; its first run is its first test. Still missing: unit tests for the power-law layer, a simulator smoke test that is quick enough for CI, and the same checks for an iPhone port.
 - **A format version in the header** (`# format,1`) written by recorders and checked by the analysis, so the format can grow without breaking old files.
 - **Shared test vectors** (GPS fixes and the lap times they must give) for the timers on each platform.
 - **A licence (owner).** Contributors need to know the terms. See the top-level README.

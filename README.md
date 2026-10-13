@@ -143,7 +143,7 @@ command; the manual is [`docs/analysis-manual.md`](docs/analysis-manual.md).
 | [`android/`](android) | The Android app, its tests and its build scripts (no Gradle needed) |
 | [`releases/`](releases) | The built APKs (1.2 and 1.3), checksums, and what I checked about them |
 | [`ios/`](ios) | Placeholder for the iPhone recorder; not started |
-| [`analysis/`](analysis) | `analyze.py` (per-file channels), `ultimate.py` (ultimate lap, deltas, predictor), `powerlaws.py` (this project's power-law report), `check_log.py` (does a recording meet the format?) |
+| [`analysis/`](analysis) | `analyze.py` (per-file channels), `ultimate.py` (ultimate lap, deltas, predictor), `powerlaws.py` (this project's power-law report), `check_log.py` (does a recording meet the format?), `regression_check.py` (did a change move any result?) |
 | [`physics/`](physics), [`sim/`](sim) | The point-mass GT3 model, and the simulator with planted driver errors that I used to test the engine ([`sim/README.md`](sim/README.md)) |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to add to the project without breaking it |
 | [`NOTICE.md`](NOTICE.md) | Third-party data and tools |

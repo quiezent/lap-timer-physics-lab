@@ -25,8 +25,9 @@ These come from reading Apple's documentation of CoreMotion and CoreLocation, no
 
 1. `python analysis/check_log.py session.csv` shows no FAIL on a real drive (a WARN is fine if it explains itself).
 2. A phone lying flat reads +9.81 on z in the file.
-3. `python analysis/ultimate.py session.csv` and `python analysis/powerlaws.py session.csv` run on it. They need at least four clean loops of a circuit they can match (Sepang today; the analysis can also run without a circuit model).
-4. On a drive that was also recorded by the Android app, the lap times agree.
+3. `python analysis/analyze.py session.csv` runs on any drive (it needs no circuit). Its report should show `Forward axis ... R2` close to 1.00 on a drive with some accelerating and braking, and a fused speed within about 1 m/s of the GPS fixes.
+4. On a Sepang drive with enough clean loops, `python analysis/ultimate.py session.csv` and `python analysis/powerlaws.py session.csv` run too (they say plainly when there are too few loops). They are circuit-specific: other circuits are untested, apart from relocated and mirrored copies of the Sepang log.
+5. On a drive that was also recorded by the Android app, the lap times agree.
 
 Please share a first real file as early as you can, even if the app is rough: the checks were written from my guesses, and a real iPhone file is the best test of them.
 

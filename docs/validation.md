@@ -27,18 +27,18 @@ adds sensor noise, a random mounting angle, GPS delay, dropouts and outliers, an
 | Corner events (spread of the error lap to lap) | braking position 1 to 2 m at most corners (mean 1.9 m), slowest speed 0.27 km/h, exit speed 0.5 km/h, pick-up 0.5 m, peak brake 0.007 g |
 | Lap-time prediction (best model, rms over 65 simulated laps) | 1.3 s with no look at the lap; 0.9 s at 20% of the lap, 0.5 s at 50%, 0.26 s at 80%, 0.06 s at 95% |
 
-**A fresh batch of 8**, run after the engine had changed for the real log, with seeds the engine had never seen (`sim/run_batch.sh 8`):
+**A fresh batch of 8**, run after the engine had changed for the real log, with seeds the engine had never seen (`sim/run_batch.sh 8`; the output is stored in [`../sim/results/batch_b301-b308.txt`](../sim/results/batch_b301-b308.txt), and I re-ran it from a fresh clone of this repository on 13 Oct 2026 and got the same numbers):
 
-| session | flying laps | section rms | claim error | printed bar | error / bar | piece-choice regret | fastest loop vs truth |
+| session | flying laps (loops found) | section rms | claim error | printed bar | error / bar | piece-choice regret | fastest loop vs truth |
 |---|---|---|---|---|---|---|---|
-| b301 | 8 | 0.040 s | +0.010 s | 0.092 s | 0.11 | 0.036 s | -0.005 s |
-| b302 | 6 | 0.049 s | -0.011 s | 0.111 s | -0.10 | 0.071 s | -0.024 s |
-| b303 | 10 | 0.040 s | -0.095 s | 0.088 s | -1.07 | 0.053 s | -0.049 s |
-| b304 | 8 | 0.065 s | +0.031 s | 0.132 s | 0.24 | 0.194 s | +0.012 s |
-| b305 | 7 | 0.041 s | -0.021 s | 0.122 s | -0.17 | 0.059 s | +0.418 s |
-| b306 | 9 | 0.047 s | -0.023 s | 0.102 s | -0.23 | 0.050 s | +0.024 s |
-| b307 | 8 | 0.064 s | -0.020 s | 0.161 s | -0.12 | 0.005 s | +0.064 s |
-| b308 | 10 | 0.050 s | -0.095 s | 0.138 s | -0.69 | 0.053 s | +0.038 s |
+| b301 | 8 (9) | 0.040 s | +0.010 s | 0.092 s | 0.11 | 0.036 s | -0.005 s |
+| b302 | 6 (7) | 0.049 s | -0.011 s | 0.111 s | -0.10 | 0.071 s | -0.024 s |
+| b303 | 10 (11) | 0.040 s | -0.095 s | 0.088 s | -1.07 | 0.053 s | -0.049 s |
+| b304 | 8 (9) | 0.065 s | +0.031 s | 0.132 s | 0.24 | 0.194 s | +0.012 s |
+| b305 | 7 (8) | 0.041 s | -0.021 s | 0.122 s | -0.17 | 0.059 s | +0.418 s |
+| b306 | 9 (10) | 0.047 s | -0.023 s | 0.102 s | -0.23 | 0.050 s | +0.024 s |
+| b307 | 8 (9) | 0.064 s | -0.020 s | 0.161 s | -0.12 | 0.005 s | +0.064 s |
+| b308 | 10 (11) | 0.050 s | -0.095 s | 0.138 s | -0.69 | 0.053 s | +0.038 s |
 
 Totals: section-time error **0.050 s rms**; the ultimate lap's claim error **-0.028 s on average, 0.051 s rms, 0.095 s at worst**; error / printed bar rms **0.47** (a bar that is one standard deviation
 should give about 1, so these bars are conservative on simulated data); the choice of pieces was 0.065 s worse than the best mix on average (worst 0.194 s); the fastest usable loop differed from the true fastest by 0.031 s (median) and
@@ -111,7 +111,7 @@ a crash writing the report for a non-Latin file name, and the dropout and parked
 
 `analysis/powerlaws.py` is newer than everything above and was checked more lightly: its numbers were compared with the tables it writes and with the engine's own events, a first version of the biggest-losses ranking was found to blame GPS gaps (and replaced
 by the "rated window" rule), a first version of the exit-speed table used windows containing other corners (now flagged and excluded), and the numbers in `reports/sepang-2026-10-13/REPORT.md` were re-checked against `numbers.json`, the tables and the engine's report before publication
-(which found and fixed several errors of wording and counting). It has no automated tests yet; a regression test on the committed CSV is on the roadmap.
+(which found and fixed several errors of wording and counting). Its only automated test is `analysis/regression_check.py`, which re-runs it (and `ultimate.py`) on the committed log and compares every output file with the committed one. That catches a change, not a mistake: I checked that it fails when I move the braking-onset threshold of the engine by 0.04 g, and it says nothing about whether the numbers are right.
 
 ## 7. Not tested
 

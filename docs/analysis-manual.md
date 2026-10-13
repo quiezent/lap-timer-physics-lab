@@ -1,6 +1,6 @@
 # Analysis manual
 
-How to run the Python analysis on a recording and how to read what comes out. Three programs, all in [`../analysis`](../analysis); each reads the CSV that the app writes
+How to run the Python analysis on a recording and how to read what comes out. The programs are all in [`../analysis`](../analysis); each reads the CSV that the app writes
 (format: [`log-format.md`](log-format.md)).
 
 | Program | What it does | Typical use |
@@ -8,6 +8,9 @@ How to run the Python analysis on a recording and how to read what comes out. Th
 | `analyze.py` | One file: turns the raw phone signals into speed, braking/throttle, steering, g-g traces, lap times and a per-corner table | a first look, and a health check of a new recording |
 | `ultimate.py` | One or several files: builds the circuit map, stitches the **ultimate lap**, measures every loop against it, replays the **lap predictor** (it calls `analyze.py` for each file) | the day's report |
 | `powerlaws.py` | One file: the **power-law report** of this project: braking in speed², corner speed against radius, what an exit speed is worth, where the time went, with figures and tables | the physics view; the report in `reports/` was made with it |
+| `check_log.py` | One file: does the recording meet the [log format](log-format.md)? PASS / WARN / FAIL lines for rates, units, signs and clocks | the first thing to run on a file from a new recorder or phone |
+| `watch_day.py` | A folder: re-runs `ultimate.py` whenever a new session file arrives | at the track, with a laptop |
+| `regression_check.py` | Re-runs `ultimate.py` and `powerlaws.py` on the committed Sepang log and compares every output with `reports/sepang-2026-10-13/` | after any change to the analysis (about 40 s) |
 
 ```
 pip install numpy scipy matplotlib
