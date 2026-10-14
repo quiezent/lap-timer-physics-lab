@@ -11,30 +11,31 @@
 
 Which one? For stages, take 1.5; it contains the stages of 1.4 and the lap timer of 1.3 as well. If you want only the recording, with the code that has actually run on a phone, take 1.2.
 The recording path itself changed in two places since 1.2, each wrapped so that a fault in the new code cannot stop the recording: 1.3 calls the lap timer after each GPS fix, and 1.4 also hands every fix to the stage code, ticks it once a second and tells it when the recording stops. 1.5 changes the recording path in one place only, the version in the header line of the CSV (`# TrackLogger 1.5`); its new code (the pins, the plans, the coordinate reader, the pin screen) runs only on the Stages screens, parked, and its buttons are off while a recording runs.
-1.4 also never reuses a file name: two recordings started within one second become `session_YYYYMMDD_HHMMSS.csv` and `session_YYYYMMDD_HHMMSSb.csv`. What `RecorderService` does around the recording is new in 1.4 (marking a stage; waiting at a start line with the GPS alone); `Exporter` is the same in all three.
+1.4 also never reuses a file name: two recordings started within one second become `session_YYYYMMDD_HHMMSS.csv` and `session_YYYYMMDD_HHMMSSb.csv`. What `RecorderService` does around the recording is new in 1.4 (marking a stage; waiting at a start line with the GPS alone); `Exporter` is the same in all four.
 To install and use any of them, follow [`../android/README.md`](../android/README.md) section 1.
 
 **Stages live inside the app and are deleted if you uninstall it** (an update keeps them; recordings in Downloads survive both). Press *Back up stages* first if you have any; the backup is a zip in `Downloads/TrackLogger`.
 
 ## What I checked about these files
 
-- **They match the source.** I rebuilt the APKs with [`../android/build.sh`](../android/build.sh) from a clean copy of the source (1.4 from a fresh clone of this repository, 1.3 from the repository as it was when 1.3 was added, 1.2 from the zip). The code (`classes.dex`), the manifest, the resources and the icon came out byte for byte the same as in the files here.
+- **They match the source.** I rebuilt the APKs with [`../android/build.sh`](../android/build.sh) from a clean copy of the source (1.5 and 1.4 each from a fresh clone of this repository at the commit that added them, 1.3 from the repository as it was when 1.3 was added, 1.2 from the zip). The code (`classes.dex`), the manifest, the resources and the icon came out byte for byte the same as in the files here.
   Only the signature differs, because a build without the key makes its own key. So what is in these APKs is what you can read.
-- **The three APKs share a signing key** (version codes 3, 4 and 5), so Android should accept each as an update of the one before and keep the app's data; I have not tried that on a phone. The key is private and is **not** in this repository. Its certificate fingerprint:
+- **The four APKs share a signing key** (version codes 3, 4, 5 and 6), so Android should accept each as an update of the one before and keep the app's data; I have not tried that on a phone. The key is private and is **not** in this repository. Its certificate fingerprint:
 
   ```
   SHA-256  44:19:D2:48:BF:B4:4D:1B:CE:4D:66:41:D9:18:C3:C0:24:76:95:F7:F1:34:5C:4E:BC:07:76:8A:FA:7D:F7:F7
   ```
 
-  Print it from an APK with `keytool -printcert -jarfile TrackLogger-1.4.apk` (any JDK). A later release signed with the same key will show the same fingerprint; a different fingerprint means a different build chain (for instance one you made yourself), which Android will not install over this app until you uninstall it first. Recordings already in Downloads survive an uninstall; **stages do not**, so back them up before you switch.
+  Print it from an APK with `keytool -printcert -jarfile TrackLogger-1.5.apk` (any JDK). A later release signed with the same key will show the same fingerprint; a different fingerprint means a different build chain (for instance one you made yourself), which Android will not install over this app until you uninstall it first. Recordings already in Downloads survive an uninstall; **stages do not**, so back them up before you switch.
+- **The checks pass on a clean machine, not only on mine.** At the commit that added 1.5 (`d986657`) the three jobs of [`../.github/workflows/checks.yml`](../.github/workflows/checks.yml) passed on GitHub's runners, and the same commands passed again from a fresh clone on my side (435 app checks, 422 without the real log; the pin method's second implementation 26 groups; the stage method's 18).
 - **The key is a throwaway.** It was generated on the build machine for sideloading (there is no Play Store listing, so there is no store signature). It is a convenience for installing and updating, not proof of who wrote the app; the proof is the source and the rebuild above.
 
 ## What I did not check
 
 - Other phones than one Galaxy S25 on Android 16, and other makers' battery managers.
-- 1.3 and 1.4 on any phone at all (the PC checks use fakes of the Android classes). For 1.4 that includes everything that has to be seen or heard: the look and size of the stage screens, the beeps, how Android treats the armed service when the screen has been off for an hour, and the GPS under trees.
+- 1.3, 1.4 and 1.5 on any phone at all (the PC checks use fakes of the Android classes). For 1.4 and 1.5 that includes everything that has to be seen or heard: the look and size of the stage screens, the beeps, how Android treats the armed service when the screen has been off for an hour, and the GPS under trees. For 1.5 it also includes how the pin screen feels under a finger: it draws the drive as a line on a blank background (the app has no map and no internet permission), and the touch size, the slider and the nudge buttons are tested only as code.
 - A stage driven on a real road and timed by something else (a stopwatch, a second device). The first one will be the first test of the whole chain.
-- Updating over 1.2 or 1.3 on a phone, or restoring a stage backup on one; installing through any route other than the one the Android README describes.
+- Updating over 1.2, 1.3 or 1.4 on a phone, or restoring a stage backup on one; installing through any route other than the one the Android README describes.
 
 What the PC checks cover, and what they cannot, is in [`../docs/validation.md`](../docs/validation.md) (the app: section 4; stages: section 5).
 
