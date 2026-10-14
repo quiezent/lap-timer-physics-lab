@@ -10,6 +10,7 @@ How to run the Python analysis on a recording and how to read what comes out. Th
 | `powerlaws.py` | One file: the **power-law report** of this project: braking in speed², corner speed against radius, what an exit speed is worth, where the time went, with figures and tables | the physics view; the report in `reports/` was made with it |
 | `check_log.py` | One file: does the recording meet the [log format](log-format.md)? PASS / WARN / FAIL lines for rates, units, signs and clocks | the first thing to run on a file from a new recorder or phone |
 | `stage_compare.py` | (release 1.4) **Stages** on a computer: `build` a stage from a marking recording, `score` every run of a stage in a recording, `compare` two runs (a stage file, a folder or a backup zip), `selftest`. It reads and writes the same text files as the app ([`stage-format.md`](stage-format.md)) and was written from the method page ([`stage-algorithm.md`](stage-algorithm.md)) without reading the Android code | scoring a recording you copied off the phone; checking another implementation against the fixtures |
+| `pin_compare.py` | (release 1.5) The **pin method** (section 11 of [`stage-algorithm.md`](stage-algorithm.md)) on a computer, written a second time from that page alone: `coords` reads a place from text as the app does, `build` makes a stage from two pins on a recording, `selftest` reproduces every expected result in `analysis/stage_fixtures/pins` and runs its own checks. Standard library only | when changing section 11, or to see what the app will do with a recording and two pins |
 | `test_reader.py` | Does `analyze.load_session` take every kind of row the app writes (the 1.4 stage events included)? 11 small cases, under a second | after a change to the reader |
 | `watch_day.py` | A folder: re-runs `ultimate.py` whenever a new session file arrives | at the track, with a laptop |
 | `regression_check.py` | Re-runs `ultimate.py` and `powerlaws.py` on the committed Sepang log and compares every output with `reports/sepang-2026-10-13/` | after any change to the analysis (about 40 s) |
@@ -32,6 +33,18 @@ python analysis/stage_compare.py build marking.csv --id st_mine --name "My road"
 python analysis/stage_compare.py score my_stage session_20261013_121500.csv --out-dir my_stage             # every run of that stage in a recording, saved as run files
 python analysis/stage_compare.py compare my_stage                                                         # the newest run against the best other one (--against previous, --plot f.png)
 ```
+
+`pin_compare.py` does the same for stages made from pins (release 1.5):
+
+```
+python analysis/pin_compare.py selftest                                              # the pin fixtures and its own checks (a few seconds)
+python analysis/pin_compare.py coords "3.568321, 101.746123"                         # how a place typed or pasted is read: ok LAT LON, or refused: why
+python analysis/pin_compare.py build session.csv at:3.5683210,101.7461230 at:3.5214530,101.9087640 --name "Fraser to Bentong" --out stage.txt
+python analysis/pin_compare.py build session.csv pos:900 pos:4300 --out stage.txt     # pins given as metres along the drive
+```
+
+A pin is `at:LAT,LON` (a place, snapped to the nearest pass of the drive) or `pos:METRES` (a distance along the track of the recording). `build` prints the stage file, or `refused: <category>: <why>` with the same categories as the app (`wrong_way`, `near_end`, `too_short`, `loop`, `hole_start`, `hole_finish`, `break`, `guard_start`, `guard_finish`, `no_pass_start`, `no_pass_finish`, `no_drive`).
+The stage file it makes is the one `stage_compare.py score` and `compare` take.
 
 Run `python analysis/stage_compare.py --help` for the options of each command (it needs only the Python standard library; `--plot` also needs matplotlib). A *marking recording* is a session file with `MARK_START` and `MARK_FINISH` events, such as the app writes when you mark a stage.
 The method is [`stage-algorithm.md`](stage-algorithm.md); the plain-words guide is [`stages.md`](stages.md). Stage times are good to a few tenths of a second, not to the hundredth: read the accuracy section before quoting one.

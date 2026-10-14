@@ -1,6 +1,6 @@
 # Stage files (format version 1)
 
-The files behind the **Stages** feature of release 1.4: what a saved stage looks like, what a saved run looks like, what the recorder adds to the session CSV,
+The files behind the **Stages** feature of release 1.4 and 1.5: what a saved stage looks like, what a saved run looks like, what a planned stage (1.5) looks like before it has a road, what the recorder adds to the session CSV,
 and the bundle that carries stages from the phone to a computer, or from one phone to another. How the numbers in them are made is in [`stage-algorithm.md`](stage-algorithm.md);
 what the feature is for and how to use it is in [`stages.md`](stages.md). The session CSV itself is [`log-format.md`](log-format.md).
 
@@ -9,7 +9,7 @@ The Android reader is `StageFiles.java`; if this page and the reader disagree, t
 
 ## Where they live
 
-- On the phone, in the app's private storage: `stages/<stage id>/stage.txt` and `stages/<stage id>/run_<run id>.txt`. Nothing else can read them, and
+- On the phone, in the app's private storage: `stages/<stage id>/stage.txt` and `stages/<stage id>/run_<run id>.txt`, and, for a planned stage that has not been driven yet, `stages/<stage id>/plan.txt` instead of `stage.txt`. Nothing else can read them, and
   **they are deleted when the app is uninstalled** (the app turns Android's cloud backup off, because a recording is not something I want leaving the phone unasked).
   The **Back up stages** button on the Stages screen writes a bundle (below) to `Downloads/TrackLogger/`; do that after you mark a stage.
 - On a computer: anywhere. `analysis/stage_compare.py` takes a stage file, a folder of them, or a bundle.
@@ -44,7 +44,7 @@ r 2575.729 -448.611
 end
 ```
 
-(The numbers are those of the road-1 test stage in [`../analysis/stage_fixtures/road1/stage.txt`](../analysis/stage_fixtures/road1/stage.txt), with the id and name changed. The first `r` is the middle of the start line and the last is the middle of the finish line, which are 20 m in from the marks; the origin is the start mark.)
+(The numbers are those of the road-1 test stage in [`../analysis/stage_fixtures/road1/stage.txt`](../analysis/stage_fixtures/road1/stage.txt), with the id and name changed. The first `r` is the middle of the start line and the last is the middle of the finish line, which are 20 m in from the marks because the car was parked on the marks; the origin is the start mark. A stage made from pins (1.5) has its lines **exactly at the pins**, on the road the car drove (for a place typed or pasted, the point of the drive nearest to it), so there the first and last `r` are those points and not 20 m in.)
 
 | Key | Values | Meaning |
 |---|---|---|
@@ -53,7 +53,7 @@ end
 | `kind` | `road` | The only kind there is. A reader that meets another kind refuses the file. |
 | `created_utc_ms` | integer | Wall clock when the stage was marked (0 if unknown). |
 | `origin` | `lat lon` (degrees, 7 decimals) | The origin of the flat frame (below). It is the start mark. |
-| `start_mark`, `finish_mark` | `lat lon` | Where the driver parked and pressed MARK START and MARK FINISH: the average of up to five still fixes. For reference; the timing uses the gates. |
+| `start_mark`, `finish_mark` | `lat lon` | Where the driver parked and pressed MARK START and MARK FINISH: the average of up to five still fixes. For a stage made from pins (1.5): the place the driver gave for the pin (typed or pasted coordinates), or, for a pin put on the drawing of the drive, the point of the drive it was put on. For reference; the timing uses the gates. |
 | `start_gate`, `finish_gate` | `cx cy bearing half_width` | A timing line: centre (metres east, north of the origin), the direction of travel it counts (compass degrees clockwise from north), half its width (metres). |
 | `route` | integer n | How many `r` lines follow; the file is rejected if the number is wrong. At least 2, at most 200 000. |
 | `r` | `x y` | A vertex of the route in the flat frame, metres, from the middle of the start line to the middle of the finish line. 3 decimals. |
@@ -62,6 +62,30 @@ end
 `x` is metres east, `y` metres north. It is the same formula as the lap timer's, and over a long stage it is off by well under a tenth of a percent; since every run of a stage is placed the same way, the comparison does not feel it.
 
 A stage is made once and **does not change** afterwards, except for its name. That is what keeps the runs saved against it comparable.
+
+## `plan.txt` (release 1.5)
+
+A **planned stage** is a stage that has a name and two places, and no road yet. The driver typed or pasted the two places (from a map). In release 1.5 the plan waits for a drive: the driver drives the road with an ordinary recording, opens the plan and chooses **Make the stage from a recording**, and the phone puts the two pins at the two places on that drive ([`stage-algorithm.md`](stage-algorithm.md) sections 11.1 to 11.3). When the stage has been made the plan file is replaced by a `stage.txt` **in the same folder, under the same id**, so everything that pointed at the plan now points at the stage. (Release 1.6 will let the driver *arm* a plan, so that the first drive records by itself: section 11.9, not built yet.)
+
+```
+TRACKLOGGER-PLAN 1
+id st20261014_011700
+name Fraser to Bentong
+created_utc_ms 1791871205000
+start_pin 3.5683210 101.7461230
+finish_pin 3.5214530 101.9087640
+end
+```
+
+| Key | Values | Meaning |
+|---|---|---|
+| `id` | id | Must equal the name of the folder it is in. |
+| `name` | text to the end of the line | As for a stage. |
+| `created_utc_ms` | integer | Wall clock when the plan was made (0 if unknown). |
+| `start_pin`, `finish_pin` | `lat lon` (degrees, 7 decimals) | The two places as the driver gave them. They need not be on the road: the lines are put on the road the car drove, at the nearest point (section 11.2). |
+
+A folder that holds a `stage.txt` is a stage, whatever else is in it; a `plan.txt` beside a `stage.txt` is ignored (and removed the next time the stage is saved). A folder with only a valid `plan.txt` is a planned stage; a folder with neither is not listed. A plan has no runs.
+**Plans are not in the backup bundle** (below): they are two places and a name, quick to type again, and a bundle holds what was learned from driving.
 
 ## `run_<run id>.txt`
 
@@ -103,7 +127,7 @@ Two runs are **comparable** when they are finished, belong to the same stage, ha
 
 ## What the recorder adds to the session CSV
 
-New `E` events; the reader of [`log-format.md`](log-format.md) ignores names it does not know, so every old tool still reads the file. The header line becomes `# TrackLogger 1.4 ...`.
+New `E` events; the reader of [`log-format.md`](log-format.md) ignores names it does not know, so every old tool still reads the file. The header line becomes `# TrackLogger 1.4 ...` (`1.5` from release 1.5).
 The time of an event is in microseconds on the recording clock like every other row; for a line crossing it is the **interpolated moment the car crossed the line**, not the time the app noticed.
 
 | Event | Values | Meaning |
@@ -114,6 +138,12 @@ The time of an event is in microseconds on the recording clock like every other 
 | `STAGE_DNF` | `reason` | The run started and did not finish (the run took far too long, or the car stood still for 20 minutes, or the recording was stopped before the finish line). |
 | `STAGE_ABORT` | `reason` | The start line was never crossed (the car moved away from it, or 5 minutes went by). The app deletes such a recording after writing this row. |
 | `MARK_START`, `MARK_FINISH` | `lat, lon, accuracy_m` | While marking a new stage: where the driver parked and pressed the button (7 decimals), and the mean reported accuracy of the fixes averaged. |
+| `PLAN` | `id` | (release 1.6, **not written by 1.5**) This recording is the first drive of the planned stage with this id. |
+| `PLAN_START`, `PLAN_FINISH` | none | (release 1.6, not written by 1.5) The car has passed the start pin / the finish pin (section 11.9: the nearest point and 30 m beyond; the time is that of the fix that showed it, not of a crossing). |
+| `PLAN_DNF` | `reason` | (release 1.6, not written by 1.5) The planned drive was given up after the start pin (the car stood still too long, or the drive took far too long). The recording is kept. |
+| `PLAN_ABORT` | `reason` | (release 1.6, not written by 1.5) The start pin was never reached. The app deletes such a recording after writing this row. |
+
+The four `PLAN*` rows are written down here so that the file format, the Python tools and an iPhone app can be planned against them; release 1.5 reads and writes `plan.txt` but does not yet record a first drive by itself, so none of its CSVs has them.
 
 **A stage can be rebuilt from a marking recording alone:** the position in `MARK_START` is the origin and the start mark, `MARK_FINISH` is the finish mark, and the GPS fixes (`L` rows) between the two events are the drive.
 `stage_compare.py build` does exactly that, and the Android tests check that the stage built live and the stage rebuilt from the file agree to 5 cm.

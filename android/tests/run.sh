@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds fakes + test code + the REAL Recorder.java, RecorderService.java, Exporter.java, the lap timer and the stage classes and runs the harness.
-#   run.sh [all|s1|s2|s3|p1|p2|l1|st|fixtures] [srcdir | path/to/Recorder.java]
+#   run.sh [all|s1|s2|s3|p1|p2|l1|st|pn|fixtures] [srcdir | path/to/Recorder.java]
 # Default sources: ../src/app/tracklog (compiled in place, never copied or modified).
 # If the 2nd argument is a directory it must contain Recorder.java, RecorderService.java, Exporter.java and LapTimer.java;
 # if it is a file it replaces Recorder.java only.

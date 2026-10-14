@@ -15,10 +15,12 @@ final class FakePrefs implements SharedPreferences {
     @Override public Editor edit() {
         return new Editor() {
             private final Map<String, String> pending = new ConcurrentHashMap<>();
-            @Override public Editor putString(String k, String v) { pending.put(k, v); return this; }
-            @Override public Editor putBoolean(String k, boolean v) { pending.put(k, v ? "true" : "false"); return this; }
-            @Override public void apply() { map.putAll(pending); }
-            @Override public boolean commit() { map.putAll(pending); return true; }
+            private final java.util.Set<String> removed = new java.util.HashSet<>();
+            @Override public Editor putString(String k, String v) { pending.put(k, v); removed.remove(k); return this; }
+            @Override public Editor putBoolean(String k, boolean v) { pending.put(k, v ? "true" : "false"); removed.remove(k); return this; }
+            @Override public Editor remove(String k) { pending.remove(k); removed.add(k); return this; }
+            @Override public void apply() { for (String k : removed) map.remove(k); map.putAll(pending); }
+            @Override public boolean commit() { apply(); return true; }
         };
     }
 }

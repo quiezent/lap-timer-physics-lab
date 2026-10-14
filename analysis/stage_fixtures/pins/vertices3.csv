@@ -1,0 +1,9 @@
+# TrackLogger 1.4 (reduced file for the stage fixtures: only the GPS rows and the events. three fixes 20 m apart)
+# device,synthetic
+# start_utc_ms,1791922600000
+# rows: L,t_us,lat,lon,alt,speed,bearing,hAcc,sAcc,bAcc,utc_ms,lag_ms | E,t_us,NAME,...
+E,0,START
+L,0,3.5,101.7,40.0,15.0,90.0,5.0,0.3,5.0,1791922600000,150
+L,1000000,3.5,101.70013499909314,40.0,15.0,90.0,5.0,0.3,5.0,1791922601000,150
+L,2000000,3.5,101.70026999818629,40.0,15.0,90.0,5.0,0.3,5.0,1791922602000,150
+E,3000000,STOP

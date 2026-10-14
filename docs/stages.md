@@ -1,7 +1,10 @@
 # Stages: mark a road once, drive it as often as you like, compare the drives
 
-Release 1.4 of the app adds **Stages**. A stage is a stretch of road with a start and a finish that you mark yourself, on the phone, by driving it once. After that you arm the stage, put the phone in its mount, and the app starts recording as you
+Release 1.4 of the app added **Stages**. A stage is a stretch of road with a start and a finish. Once the phone has it, you arm the stage, put the phone in its mount, and the app starts recording as you
 come to the start line and stops after the finish line, every time. Each drive is kept as a **run** of that stage, and later you can put two runs side by side and see where one was ahead of the other.
+
+Release 1.4 made a stage one way only: park at the start, drive, park at the finish. The driver told me that is not viable on these roads, because there is often nowhere safe to stop at either end. **Release 1.5 adds two ways that need no stopping on the road**: drive first and put the start and the finish on the drive afterwards, or type the two places in from Google Maps.
+Both end in exactly the same kind of stage, so everything after that (arming, runs, comparison) is unchanged.
 
 The driver asked for this for the roads they drive (the Dash highways, KKB to Fraser, Fraser to Bentong) that are also used as rally stages. This page is the plain-words guide. The step-by-step method with every constant is
 [`stage-algorithm.md`](stage-algorithm.md); the files are [`stage-format.md`](stage-format.md); how well it was checked is in [`validation.md`](validation.md).
@@ -18,17 +21,46 @@ They told me these are **open roads with normal traffic**. So I built the stages
 - **The times are not official and not precise enough to settle a bet.** They are good to a few tenths of a second (below).
 
 This is a limit on what I will build for open roads, not a verdict on the driver. On a closed road, a permitted event or a track the same code gives the same numbers, and a live display could be added for those places on purpose, with its own switch.
-It is not in 1.4 (the circuit coaching described at the end is on the list for the track, not for the road).
+It is not in 1.4 or 1.5 (the circuit coaching described at the end is on the list for the track, not for the road).
 
 ## What you do
 
-**Mark a stage (once per road, once per direction).**
-1. Main screen, **Stages**, **Mark a new stage**. The app starts recording and says *Step 1 of 2*. Type a name for the stage (you can change it later).
+**Add a stage (once per road, once per direction).** On the Stages screen, **Add a stage** offers three ways. The first two are done parked or at home, never while driving.
+
+**1. Drive first, pin afterwards.** Drive the road with an ordinary recording (the START button on the main screen), as you always do, or use a drive you already have on the phone.
+Afterwards open **Add a stage, Drive first, pin afterwards** and pick the drive: from the recordings on the phone (newest first) or from any recording file. The phone draws the drive as a line on a blank background (there are no map tiles: the app has no internet permission) in two pictures, the whole drive and a close-up around the pin you are working on.
+Green is the start pin and red the finish pin. **Touch the line** to put the pin you are working on there, then use the slider and the buttons (-500, -50, -5, +5, +50, +500 m) for the last metres; the close-up and the orange timing line move with it.
+**Open in Google Maps** shows the pin's place in your maps app, to check it against the real road; **Set from coordinates** puts the pin at a latitude and longitude you type or paste. Give the stage a name and press **Save the stage**.
+The phone makes the stage from your pins, scores that drive against it as the first run, and opens it. A pin goes **exactly** where you put it: the timing line is there, 50 m wide, across the road.
+A drive with other roads in it is fine: you choose where the stage starts and where it ends, and the rest is ignored.
+
+**2. Plan from map coordinates.** In Google Maps touch and hold the spot on the road where the stage starts: a pin drops and the numbers appear at the top or the bottom (they look like `3.568321, 101.746123`). Touch the numbers to copy them. In the app, **Add a stage, Plan from map coordinates**: paste them in the Start box (the **Paste the start** button reads the clipboard), do the same for the finish, give it a name and **Save the plan**.
+The boxes also accept a Google Maps link that holds the numbers, a `geo:` link, degrees-minutes-seconds (`3°08'20.4"N 101°41'12.7"E`) and a hemisphere letter before or after the numbers. **Show the start on a map** opens the place in your maps app so that you can see that it is the right road. A short link (`goo.gl`, `maps.app.goo.gl`) is not read, because the phone has no internet to open it: open it in Google Maps and copy the numbers instead.
+The phone never guesses: a pair that could be read two ways (longitude first, a comma as a decimal mark, a sign together with N or S) is refused with a sentence that says what to write instead, and it does not swap the numbers for you.
+A plan is a name and two places and has **no road yet**. Drive the road once with an ordinary recording, from a little before the start to a little after the finish; then open the plan and press **Make the stage from a recording**, pick that drive, and you are on the pin screen with both pins already at your two places. The phone snaps each place to the road you drove (within 60 m; if the drive passes it more than once it uses the first pair that makes a stage) and tells you how far from the road your place was if that was more than 5 m.
+Check the picture, save, and the plan becomes a stage under the same name. (Starting that first recording by itself, and building the stage without the extra step, is the next release.)
+
+**3. Mark it by parking at both ends.** For a road that has a safe place to stop at the start and at the finish.
+1. Main screen, **Stages**, **Add a stage**, **Mark it by parking at both ends**. The app starts recording and says *Step 1 of 2*. Type a name for the stage (you can change it later).
 2. Park at the start, off the road, and keep the car still. The **Mark start** button turns on when the last few GPS fixes agree that the car is still and the position has settled (4 fixes in a row at under 0.8 m/s, each good to 12 m or better, within 6 m of each other). Press it.
 3. Drive the stage as you normally would, with the phone in its mount. Nothing is shown. Park at the finish, off the road, still, and press **Mark finish**.
 4. The app builds the stage from the drive (below) and opens it. The marking drive is scored against the new stage and saved as its first run (it starts from rest and ends braking to a stop, so it is the least precise kind of run: see *How accurate*). If the drive cannot make a stage it says why in words (the car never moved, too few GPS fixes, under 300 m, or the finish is less than 150 m from the start, which is a loop) and nothing is saved.
 
-A road driven in the other direction is a different stage: the timing lines count only a car travelling the way you marked them, so mark KKB to Fraser and Fraser to KKB separately.
+A road driven in the other direction is a different stage: the timing lines count only a car travelling the way you marked them, so make KKB to Fraser and Fraser to KKB separately (with pins, one drive of each direction; or one drive there and back, with the pins placed on the leg you want).
+
+**When the phone says no.** A stage made from pins is checked before it is saved, and the sentence tells you what to change. In words, with the name of each refusal in the method page:
+
+| The phone says | It means | What to do |
+|---|---|---|
+| The finish comes before the start | The two pins are the wrong way round for this drive (`wrong_way`) | Swap them, or pick the drive made the other way |
+| Only a few metres from the beginning / the end of the recording | The recording has to show the car arriving at the start and leaving the finish, with 20 m of road each side (`near_end`) | Move the pin in, or record a little longer either side next time |
+| The road between the pins is only X | A stage needs 300 m (`too_short`) | Move the pins apart |
+| The pins are only X apart in a straight line | A loop, not a stage: 150 m between the pins at least (`loop`) | Move the pins apart |
+| The GPS gave no position for N s around the start (finish) pin | The phone could not see the car cross a line there (`hole_start`, `hole_finish`) | Move that pin to where the GPS was working |
+| The recording has a break of N s between the two pins | The GPS was lost for more than 5 minutes with the car far from where it was, or this recording holds two drives (`break`) | Put both pins on one stretch |
+| The road crosses the start (finish) line again | Hairpins stacked closer than a line is wide, or a loop: a run would be mistimed (`guard_start`, `guard_finish`) | Move that pin to a straighter place |
+| The place is not on this drive: the road comes no closer than X | A typed or pasted place is more than 60 m from anywhere the car drove (`no_pass_start`, `no_pass_finish`) | Check the numbers (latitude first), or pick another drive |
+| There is no drive in this recording | The car hardly moved, or the GPS fixes were poor (`no_drive`) | Pick another recording |
 
 **Drive it.** Open the stage, **Arm this stage**. From then on, with only the GPS on and nothing recorded, the app waits. When the car is moving within 400 m of the start line, it starts recording (so a stop at a junction near the start, or a queue, does not start it;
 moving off does). The run is timed from the instant the car crosses the start line to the instant it crosses the finish line, and the recording runs for 5 more seconds and stops. The run is saved, and the phone arms itself again for the next one. Each run is a full session recording like any other (about 0.6 MB a minute, so a 25-minute stage is about 16 MB), kept in the app's folder and copied to `Downloads/TrackLogger`. It will not trigger again until the car
@@ -46,7 +78,10 @@ back from a computer). Scoring a recording twice changes nothing: runs are named
 
 ## How a stage is made
 
-The car was parked on the start mark, so a line exactly there could be "crossed" by GPS jitter before the car moves, or missed. The start line is therefore **20 m along the recorded route from the start mark**, and the finish line 20 m before the finish mark; a car pulling away from rest crosses the first at about 40 km/h, where a metre of GPS error is a tenth of a second and not a third.
+**From pins (1.5).** The lines go **exactly at the pins**, across the road, with no shift: the car is driving past a pin, so there is no jitter of a parked car to avoid. The route between them is the part of your drive between the pins, thinned to a vertex every 3 m or more, and the first run is that drive, which has a rolling start and a rolling finish, the most precise kind of run. The full method, with every number, is section 11 of [`stage-algorithm.md`](stage-algorithm.md).
+The phone also checks, before it saves, that the road does not cross a line a second time near it (the tight stacked hairpins described in the table at the end), which would mistime every run.
+
+**From parking (1.4).** The car was parked on the start mark, so a line exactly there could be "crossed" by GPS jitter before the car moves, or missed. The start line is therefore **20 m along the recorded route from the start mark**, and the finish line 20 m before the finish mark; a car pulling away from rest crosses the first at about 40 km/h, where a metre of GPS error is a tenth of a second and not a third.
 The recorded route zigzags with the GPS noise and is a little longer than the road, so in simulation the lines came out **15 to 18 m of road** from the marks, not 20. If you want a line at a particular place (a junction, a sign), park 15 to 20 m beyond it when you mark.
 Each line is 50 m wide (25 m each side of the road's centre line as driven) and counts only a car going the way you drove. Every run is timed between those same two lines, so the 20 m is the same for all of them and cancels in a comparison. The route between the lines is your marking drive, thinned to a vertex every 3 m or more, and it gives every run the same ruler:
 the app records the time at which the car had reached each 25 m of the route.
@@ -80,20 +115,25 @@ when a run had a gap of more than 5 s, wandered more than 100 m from the route, 
 | The marking drive (the stage's first run) says *did not finish* | The same reason: that drive ends braking to a stop at the finish mark. The stage is fine; drive it once more as a normal run. In my simulations this happened to 3, 0 and 25 of about 500 such drives on three seeds, the 25 on one stage. |
 | Two runs "do not line up" | They were not timed against the same stage file (a stage restored from a backup under a changed route, for example). |
 | A run is many seconds slower than the others and the graph shows where | Traffic, a stop, a wrong turn or a GPS gap; the notes under the comparison say if the GPS was poor there. |
-| A run is *tens of seconds* off and the graph jumps at the very start or the very end | **Tight stacked hairpins at a line.** A line is 50 m wide; if the road doubles back twice within 25 m of the start or finish line, the car can cross it on the wrong leg. In simulation, legs 30 and 20 m apart were always right, 16 m was wrong in 0 to 6 runs of 100 and 12 m in 29 to 63 of 100. Mark the start and finish away from tight bends. The app does not check for this yet. |
+| A run is *tens of seconds* off and the graph jumps at the very start or the very end | **Tight stacked hairpins at a line.** A line is 50 m wide; if the road doubles back twice within 25 m of the start or finish line, the car can cross it on the wrong leg. In simulation, legs 30 and 20 m apart were always right, 16 m was wrong in 0 to 6 runs of 100 and 12 m in 29 to 63 of 100. Mark the start and finish away from tight bends. **Stages made from pins (1.5) are checked for this and refused** with a sentence; stages marked by parking (1.4) are not. |
+| *Make the stage from a recording* says a place "is not on this drive" | You typed a place more than 60 m from any road the car drove on that recording: check the numbers (latitude first, then longitude), or pick the drive that went there. |
+| A pin cannot be put where I want it | The pins go on the drive as it was recorded, so the road has to have been driven. If the car went a metre off the line, the line is where the car went. |
 
 ## What I did not check
 
-I have not run the stage screens on a phone: the checks below ran on a PC against fakes of the few Android classes they use. I have not driven a stage on a road. That leaves the look of the screens and the size of the buttons, how Android treats the service when the screen is off for an hour (battery managers differ), whether the beeps are audible over a
+I have not run the stage screens on a phone: the checks below ran on a PC against fakes of the few Android classes they use. That includes the new pin screens of 1.5: how the line drawing looks on a real screen, whether a touch on the line lands where a finger means it to, whether the keyboard hides the boxes, what the clipboard gives from your version of Google Maps, and which maps app opens a `geo:` link. I have not driven a stage on a road. That leaves the look of the screens and the size of the buttons, how Android treats the service when the screen is off for an hour (battery managers differ), whether the beeps are audible over a
 car, the GPS under tree cover, the real time to the first fix after ARM, and what happens when Android kills the app in the middle of a run (the run is then not saved, but the recording up to that point is). There is no ground truth from a second timer, and the first real stage will be the first test of the whole chain.
 The list of checks and what each does is in [`validation.md`](validation.md); the numbers there are what the tests printed.
 
-## What is in 1.4 and what is next
+## What is in 1.5 and what is next
 
-In 1.4: marking, arming, automatic start and stop, runs, comparison, scoring old recordings, backup and restore, beeps, the open-road rules above. Not in 1.4 and next in line, in the order the driver chose:
+In 1.4: marking by parking, arming, automatic start and stop, runs, comparison, scoring old recordings, backup and restore, beeps, the open-road rules above.
+In 1.5: **drive first, pin afterwards**, **plan from map coordinates** (type or paste two places; make the stage from the first drive), the check for a road that crosses a line twice, holes and breaks in the GPS refused at a pin.
+Not yet, and next in line:
 
-1. **Sepang from earlier sessions.** Load a previous Sepang session (or several) on the phone as the baseline, so that predictions and comparisons work from the first lap of a new session and not after a few laps of collecting data.
-2. **A Coaching button for the circuit.** Predicted lap time and a live delta against your own best-of-sessions lap, from lap 1, for the track only, with the same glanceable-not-distracting rule, and a debrief after the session. Not for stages on open roads.
+1. **A planned stage that arms itself (1.6).** Arm a plan, drive the road once, and the phone records that drive by itself from before the start to after the finish, then makes the stage from it and scores the drive as the first run, without the extra step of picking the recording.
+2. **Sepang from earlier sessions (1.7).** Load a previous Sepang session (or several) on the phone as the baseline, so that predictions and comparisons work from the first lap of a new session and not after a few laps of collecting data.
+3. **A Coaching button for the circuit (1.7).** Predicted lap time and a live delta against your own best-of-sessions lap, from lap 1, for the track only, with the same glanceable-not-distracting rule, and a debrief after the session. Not for stages on open roads.
 
 ## Where the code is
 
@@ -102,7 +142,9 @@ In 1.4: marking, arming, automatic start and stop, runs, comparison, scoring old
 | `StagesActivity` | The screen: list of stages, a stage with its runs, the comparison with its graph, the marking pages, backup and restore |
 | `StageText` | Every word and number the screens show, as plain functions (so they are tested) |
 | `StageLive`, `ResultGuard` | What the service tells the screen; the "has the car stopped" rule that keeps numbers off the screen |
-| `StageMarker`, `MarkSession`, `StageBuilder` | Marking: the still-car test, the two marks, and building the stage from the drive |
+| `StageMarker`, `MarkSession`, `StageBuilder` | Marking by parking: the still-car test, the two marks, and building the stage from the drive |
+| `Track`, `PinBuilder`, `Coords` | Pins (1.5): the cleaned path of a recording with its holes, building a stage from two pins and refusing the ones that cannot be timed, reading a place from text a person typed or pasted |
+| `Plan`, `TrackView` | A planned stage (two places and a name, no road yet), and the line drawing with touch for placing a pin |
 | `Gate`, `Geo`, `Pt`, `Route` | The timing line, the flat map frame, a placed GPS fix, and the route with its distances |
 | `StageRun`, `Scorer`, `StageSession`, `StageWatcher`, `ArmedWatcher` | Following a run fix by fix, scoring a whole recording, the live run, and the armed waiting |
 | `Compare`, `RunResult` | The comparison of two runs, and the summary kept for each run |
@@ -110,5 +152,5 @@ In 1.4: marking, arming, automatic start and stop, runs, comparison, scoring old
 | `Beeper` | The beeps |
 | `RecorderService`, `Recorder`, `MainActivity` | The service gained the armed and marking modes; the recorder passes each GPS fix to the stage code and writes the stage events; the main screen shows words instead of numbers while a stage is armed |
 
-On a computer: `python analysis/stage_compare.py` scores recordings against a stage file, builds a stage from a marking recording and compares runs (it was written from [`stage-algorithm.md`](stage-algorithm.md) alone, without reading the Java), and
+On a computer: `python analysis/stage_compare.py` scores recordings against a stage file, builds a stage from a marking recording and compares runs (it was written from [`stage-algorithm.md`](stage-algorithm.md) alone, without reading the Java); `python analysis/pin_compare.py` reads a place the way the app does and builds a stage from two pins on a recording, written the same way from section 11 of that page (its one-line-breakage test and what the shared test files do not yet hold it to: [`../analysis/stage_fixtures/pins/GAPS.md`](../analysis/stage_fixtures/pins/GAPS.md)); and
 `python sim/simulate_stage.py` simulates driven stages with a known true time.

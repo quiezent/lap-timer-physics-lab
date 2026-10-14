@@ -18,6 +18,7 @@ import java.util.Locale;
  *
  *   <root>/<stage id>/stage.txt            the stage (StageFiles)
  *   <root>/<stage id>/run_<run id>.txt     one finished or unfinished run
+ *   <root>/<stage id>/plan.txt             a planned stage that has not been driven yet (instead of stage.txt; release 1.5)
  *
  * Writes go to a temporary file in the same folder and are then renamed over the real one, so a kill in the middle of a write leaves
  * the old file intact, never half a new one. A file that cannot be read back (cut short, edited by hand, a later format) is skipped
@@ -26,6 +27,7 @@ import java.util.Locale;
 final class StageStore {
 
     private static final Charset UTF8 = Charset.forName("UTF-8");
+    private static final String PLAN_FILE = "plan.txt";
     private final File root;
 
     StageStore(File root) {
@@ -80,11 +82,13 @@ final class StageStore {
         }
     }
 
+    /** Writes the stage. If the folder holds the plan this stage was made from, the plan goes (after the stage is safely on disk). */
     void save(Stage s) throws IOException {
         if (!StageFiles.safeId(s.id)) throw new IOException("bad stage id");
         final File dir = new File(root, s.id);
         if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("cannot create " + dir);
         writeAtomic(new File(dir, "stage.txt"), StageFiles.formatStage(s));
+        new File(dir, PLAN_FILE).delete();
     }
 
     /** Deletes the stage and all its runs. Not the recorded session files: those belong to the person. */
@@ -94,6 +98,52 @@ final class StageStore {
         final File[] fs = dir.listFiles();
         if (fs != null) for (File f : fs) f.delete();
         dir.delete();
+    }
+
+    // ------------------------------------------------------------------ plans
+
+    /** Planned stages, by name: the folders that hold a plan.txt that can be read and no stage.txt (a stage wins over a plan beside it). */
+    List<Plan> listPlans() {
+        final List<Plan> out = new ArrayList<Plan>();
+        final File[] dirs = root.listFiles();
+        if (dirs == null) return out;
+        for (File d : dirs) {
+            if (!d.isDirectory() || !StageFiles.safeId(d.getName())) continue;
+            final Plan p = loadPlan(d.getName());
+            if (p != null) out.add(p);
+        }
+        Collections.sort(out, new Comparator<Plan>() {
+            @Override
+            public int compare(Plan a, Plan b) {
+                final int c = a.name().compareToIgnoreCase(b.name());
+                return c != 0 ? c : a.id.compareTo(b.id);
+            }
+        });
+        return out;
+    }
+
+    /** The plan, or null if there is none with that id, its file cannot be read, or the folder already holds the stage. */
+    Plan loadPlan(String id) {
+        if (!StageFiles.safeId(id)) return null;
+        final File dir = new File(root, id);
+        final File f = new File(dir, PLAN_FILE);
+        try {
+            if (!f.isFile() || new File(dir, "stage.txt").exists()) return null;
+            final Plan p = StageFiles.parsePlan(read(f));
+            return p.id.equals(id) ? p : null;
+        } catch (IOException e) {
+            return null;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    void savePlan(Plan p) throws IOException {
+        if (!StageFiles.safeId(p.id)) throw new IOException("bad plan id");
+        final File dir = new File(root, p.id);
+        if (new File(dir, "stage.txt").exists()) throw new IOException("there is already a stage with that id");
+        if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("cannot create " + dir);
+        writeAtomic(new File(dir, PLAN_FILE), StageFiles.formatPlan(p));
     }
 
     // ------------------------------------------------------------------ runs

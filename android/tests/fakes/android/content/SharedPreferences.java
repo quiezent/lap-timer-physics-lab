@@ -9,6 +9,7 @@ public interface SharedPreferences {
     interface Editor {
         Editor putString(String key, String value);
         Editor putBoolean(String key, boolean value);
+        Editor remove(String key);
         void apply();
         boolean commit();
     }

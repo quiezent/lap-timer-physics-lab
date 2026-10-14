@@ -8,6 +8,7 @@ public abstract class Context {
     public static final String LOCATION_SERVICE = "location";
     public static final String POWER_SERVICE = "power";
     public static final String NOTIFICATION_SERVICE = "notification";
+    public static final String CLIPBOARD_SERVICE = "clipboard";
     public static final int MODE_PRIVATE = 0;
 
     public abstract Context getApplicationContext();

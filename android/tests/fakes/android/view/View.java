@@ -44,6 +44,7 @@ public class View {
     public int getHeight() { return height; }
     public void invalidate() { invalidations++; }
     protected void onDraw(Canvas c) { }
+    public boolean onTouchEvent(MotionEvent e) { return false; }
 
     // ---- test hooks, not part of the Android API ----
 
@@ -76,6 +77,14 @@ public class View {
             return v.longClick.onLongClick(v);
         }
         return false;
+    }
+
+    /** A finger touches the view at (x, y) and lets go: DOWN then UP, as a tap is delivered. True if the view took it. */
+    public boolean touch(float x, float y) {
+        if (!shown() || !isEnabled()) return false;
+        final boolean down = onTouchEvent(new MotionEvent(MotionEvent.ACTION_DOWN, x, y));
+        final boolean up = onTouchEvent(new MotionEvent(MotionEvent.ACTION_UP, x, y));
+        return down || up;
     }
 
     public boolean clickable() { return click != null; }

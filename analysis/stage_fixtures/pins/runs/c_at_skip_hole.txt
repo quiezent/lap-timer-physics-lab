@@ -1,0 +1,16 @@
+TRACKLOGGER-RUN 1
+stage pin_c_at_skip_hole
+run 20261013_110000_1
+csv session_20261013_110000.csv
+utc_ms 1791889883890
+finished 1
+status ok
+total_s 19.794
+length_m 496.42
+step_m 25.0
+quality 20 1.000 0.0 3.5 0.0 1.000 1.000
+line_speeds 20.71 25.18
+n 21
+p 0.000 1.173 2.064 2.978 3.821 4.643 5.443 6.244 7.182 8.053 8.856 9.698 10.535 11.410 12.485 13.703 15.091 16.415 17.706 18.878
+p 19.794
+end

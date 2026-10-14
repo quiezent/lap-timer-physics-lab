@@ -455,10 +455,13 @@ final class StageAppTests {
 
     static final long NOW = 1791890000000L;
 
+    /** The clipboard of the fake phone: tests put a clip on it, or make it refuse. */
+    static final android.content.ClipboardManager CLIP = new android.content.ClipboardManager();
+
     static Context context(final File dir, final FakeContentResolver cr, final FakePrefs prefs) {
         return new Context() {
             @Override public Context getApplicationContext() { return this; }
-            @Override public Object getSystemService(String n) { return null; }
+            @Override public Object getSystemService(String n) { return Context.CLIPBOARD_SERVICE.equals(n) ? CLIP : null; }
             @Override public File getExternalFilesDir(String t) { return dir; }
             @Override public File getFilesDir() { return dir; }
             @Override public ContentResolver getContentResolver() { return cr; }

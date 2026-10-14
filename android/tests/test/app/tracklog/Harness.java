@@ -10,7 +10,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * JVM harness for app.tracklog.Recorder with fake android.* classes.
- * usage: java -cp <classes> app.tracklog.Harness [all|s1|s2|s3|p1|p2|l1|st|fixtures] [outDir]
+ * usage: java -cp <classes> app.tracklog.Harness [all|s1|s2|s3|p1|p2|l1|st|pn|fixtures] [outDir]
  */
 public final class Harness {
     static final ByteArrayOutputStream ERR = new ByteArrayOutputStream();
@@ -61,6 +61,9 @@ public final class Harness {
             StageFixtures.generate(out, realLog);
             System.out.println("wrote the stage fixtures to " + out + (realLog == null ? " (without the real-log part)" : ""));
             StageFixtures.check(out, realLog);
+            PinFixtures.generate(out, realLog);
+            System.out.println("wrote the pin fixtures to " + new File(out, "pins") + (realLog == null ? " (without the real-log lines)" : ""));
+            PinFixtures.check(out, realLog);
         }
         if (mode.equals("all") || mode.equals("s1")) Scenario1.run(root);
         if (mode.equals("all") || mode.equals("s2")) Scenario2.run(root);
@@ -72,6 +75,11 @@ public final class Harness {
             StageTests.run(root);
             StageUiTests.run(root);
             ScenarioST.run(root);
+        }
+        if (mode.equals("all") || mode.equals("pn")) {
+            PinTests.run(root);
+            PlanTests.run(root);
+            PinUiTests.run(root);
         }
 
         System.out.println("\n===== SUMMARY =====");

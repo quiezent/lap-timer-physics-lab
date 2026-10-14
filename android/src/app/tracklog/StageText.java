@@ -226,6 +226,85 @@ final class StageText {
         for (String x : w) b.append("\nNote, ").append(label.toLowerCase(Locale.US)).append(": ").append(x);
     }
 
+    // ------------------------------------------------------------------ adding a stage (release 1.5)
+
+    static final String ADD_INTRO = "A stage is a stretch of road with a start and a finish. Choose how to tell the app where they are. "
+            + "Only the last way needs you to stop at the two ends of the road.";
+    static final String WAY_PIN_TITLE = "Drive first, pin afterwards";
+    static final String WAY_PIN_BODY = "Record the drive as usual, or use one you already have. Then you see it drawn as a line and put "
+            + "a pin where the stage starts and another where it ends.";
+    static final String WAY_PLAN_TITLE = "Plan from map coordinates";
+    static final String WAY_PLAN_BODY = "Copy the start and the finish from Google Maps and paste them in. Then drive the road with an "
+            + "ordinary recording and make the stage from it: the phone puts the two pins at your two places.";
+    static final String WAY_PARK_TITLE = "Mark it by parking at both ends";
+    static final String WAY_PARK_BODY = "For a road with a safe place to stop at the start and at the finish: park, press MARK START, "
+            + "drive, park, press MARK FINISH.";
+
+    static final String PLAN_HOW = "In Google Maps touch and hold the spot on the road where the stage starts. A pin drops: copy the two "
+            + "numbers it shows (they look like 3.568321, 101.746123) and paste them below. Do the same for the finish. "
+            + "A Google Maps link that holds the numbers works too.";
+    static final String PLAN_NEXT = "Next: drive the road with an ordinary recording, from a little before the start to a little after "
+            + "the finish. Then open this plan and choose Make the stage from a recording. The phone puts the two pins at these places on "
+            + "that drive and checks them. After that you arm the stage as usual and the phone times every drive of it.";
+    static final String PLAN_DRIVE_NOTE = "Drive the road with an ordinary recording: start it a little before the start and stop it a little "
+            + "after the finish. Then come back here. The phone puts the two pins at your two places on that drive, shows you the line, and "
+            + "checks that they make a stage. That drive becomes the first run.";
+    static final String PASTE_EMPTY = "Nothing to paste. Copy the numbers in Google Maps first, or touch and hold the box and choose Paste.";
+
+    /** What the person gave for one end of a plan, in words: the place read, or why it could not be read. */
+    static String placeRead(String label, Coords.Result r) {
+        return r.ok ? label + ": " + Coords.format(r.lat, r.lon) : label + ": " + r.message;
+    }
+
+    static String planRow(Plan p) {
+        return p.name() + "\nPlanned, not driven yet   " + dist(p.straightM()) + " apart in a straight line";
+    }
+
+    static String planDetail(Plan p) {
+        return "Planned, not driven yet.\n\nStart   " + Coords.format(p.startLat, p.startLon)
+                + "\nFinish  " + Coords.format(p.finishLat, p.finishLon) + "\n" + dist(p.straightM()) + " apart in a straight line";
+    }
+
+    static String planApart(double straightM) {
+        return "The two places are " + dist(straightM) + " apart in a straight line.";
+    }
+
+    static final String PICK_INTRO = "Pick the drive that went along the road you want as a stage. It can be a long drive with other roads "
+            + "in it: you choose where the stage starts and where it ends.";
+
+    private static final String[] MONTHS = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+    /** Two lines for the list of recordings: when (from the file's name) and how big, then the name. */
+    static String recordingRow(String fileName, long bytes) {
+        String when = fileName;
+        final java.util.regex.Matcher m = java.util.regex.Pattern.compile("^session_(\\d{4})(\\d{2})(\\d{2})_(\\d{2})(\\d{2})(\\d{2})\\.csv$").matcher(fileName);
+        if (m.matches()) {
+            final int mo = Integer.parseInt(m.group(2));
+            if (mo >= 1 && mo <= 12) when = Integer.parseInt(m.group(3)) + " " + MONTHS[mo - 1] + " " + m.group(4) + ":" + m.group(5);
+        }
+        final String size = bytes >= 1000000L ? String.format(Locale.US, "%.1f MB", bytes / 1e6) : Math.max(1L, Math.round(bytes / 1e3)) + " KB";
+        return when + "   " + size + "\n" + fileName;
+    }
+
+    static final String PIN_HELP = "Green is the start, red is the finish. Touch the line to put the pin you are working on there, then use "
+            + "the slider and the buttons for the last metres. The orange line in the lower picture is the timing line, as the stage will have it.";
+
+    static String pinHeader(String source, double lengthM) {
+        return "Drive: " + source + ", " + dist(lengthM) + " long.";
+    }
+
+    /** Where the active pin is: which one, how far along the drive, and the latitude and longitude of that place. */
+    static String pinPosition(int which, double s, double lengthM, double lat, double lon) {
+        return (which == 0 ? "START PIN" : "FINISH PIN") + "   " + dist(s) + " along the drive of " + dist(lengthM) + "\n" + Coords.format(lat, lon);
+    }
+
+    /** The check of the two pins, for the line above SAVE: what stage they make, or why they do not make one. */
+    static String pinCheck(PinBuilder.Result r) {
+        final StringBuilder b = new StringBuilder("These pins make a stage of " + dist(r.stage.lengthM()) + ".");
+        for (String n : r.notes) b.append('\n').append(n);
+        return b.toString();
+    }
+
     static String cap(String s) {
         return s.length() == 0 ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }

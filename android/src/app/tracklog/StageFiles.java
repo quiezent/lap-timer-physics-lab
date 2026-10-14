@@ -15,6 +15,7 @@ final class StageFiles {
 
     static final String STAGE_MAGIC = "TRACKLOGGER-STAGE 1";
     static final String RUN_MAGIC = "TRACKLOGGER-RUN 1";
+    static final String PLAN_MAGIC = "TRACKLOGGER-PLAN 1";
     private static final int MAX_ROUTE_POINTS = 200000;
     private static final int MAX_PROFILE_POINTS = 100000;
 
@@ -94,6 +95,56 @@ final class StageFiles {
         return new Stage(id, name, kind, created, new Geo(origin[0], origin[1]),
                 new Gate(sg[0], sg[1], sg[2], sg[3]), new Gate(fg[0], fg[1], fg[2], fg[3]), new Route(xs, ys),
                 sm[0], sm[1], fm[0], fm[1]);
+    }
+
+    // ------------------------------------------------------------------ plan
+
+    static String formatPlan(Plan p) {
+        final StringBuilder b = new StringBuilder(512);
+        b.append(PLAN_MAGIC).append('\n');
+        b.append("id ").append(p.id).append('\n');
+        b.append("name ").append(p.name()).append('\n');
+        b.append("created_utc_ms ").append(p.createdUtcMs).append('\n');
+        b.append(String.format(Locale.US, "start_pin %.7f %.7f%n", p.startLat, p.startLon));
+        b.append(String.format(Locale.US, "finish_pin %.7f %.7f%n", p.finishLat, p.finishLon));
+        b.append("end\n");
+        return b.toString();
+    }
+
+    static Plan parsePlan(String text) {
+        final String[] lines = text.split("\r?\n");
+        if (lines.length < 3 || !lines[0].trim().equals(PLAN_MAGIC)) throw new IllegalArgumentException("not a plan file");
+        if (!lines[lines.length - 1].trim().equals("end")) throw new IllegalArgumentException("plan file is cut short");
+        String id = null, name = "Stage";
+        long created = 0L;
+        double[] sp = null, fp = null;
+        for (int i = 1; i < lines.length - 1; i++) {
+            final String ln = lines[i];
+            if (ln.length() == 0) continue;
+            final int sep = ln.indexOf(' ');
+            final String key = sep < 0 ? ln : ln.substring(0, sep);
+            final String rest = sep < 0 ? "" : ln.substring(sep + 1);
+            if (key.equals("id")) {
+                id = rest.trim();
+            } else if (key.equals("name")) {
+                name = rest;
+            } else if (key.equals("created_utc_ms")) {
+                created = Long.parseLong(rest.trim());
+            } else if (key.equals("start_pin")) {
+                sp = nums(rest, 2);
+            } else if (key.equals("finish_pin")) {
+                fp = nums(rest, 2);
+            }
+            // unknown keys are skipped, so a later version can add lines
+        }
+        if (id == null || id.length() == 0 || !safeId(id)) throw new IllegalArgumentException("bad plan id");
+        if (sp == null || fp == null) throw new IllegalArgumentException("plan file is missing lines");
+        if (!place(sp) || !place(fp)) throw new IllegalArgumentException("a pin is not a place on the earth");
+        return new Plan(id, name, created, sp[0], sp[1], fp[0], fp[1]);
+    }
+
+    private static boolean place(double[] v) {
+        return Math.abs(v[0]) <= 90.0 && Math.abs(v[1]) <= 180.0;
     }
 
     // ------------------------------------------------------------------ run

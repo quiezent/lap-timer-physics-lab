@@ -1,0 +1,12 @@
+TRACKLOGGER-RUN 1
+stage pin_d_short_301
+run 20261013_111500_1
+csv session_20261013_111500.csv
+utc_ms 1791890124554
+finished 0
+status the recording ended before the finish line
+length_m 300.10
+step_m 25.0
+quality 231 1.000 300.1 3.5 2731.3 1.000 0.000
+line_speeds 31.27 -1.00
+end

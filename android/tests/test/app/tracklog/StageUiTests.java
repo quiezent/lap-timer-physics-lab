@@ -203,7 +203,7 @@ final class StageUiTests {
         return new Rig(dir, new FakeContentResolver(), new FakePrefs());
     }
 
-    private static void reset() {
+    static void reset() {
         StageLive.reset();
         StageLive.lastRun = null;
         StageLive.markedStageId = "";
@@ -258,14 +258,14 @@ final class StageUiTests {
         reset();
         final Rig r = rigWithStages(root, "home", 3, 2);
         final String s = r.screen();
-        Check.ok("ST.UI1 the stage list: both stages by name, with length, number of runs and best time; MARK A NEW STAGE, BACK UP and RESTORE are there and can be pressed; no frame box and no notice while nothing is going on",
+        Check.ok("ST.UI1 the stage list: both stages by name, with length, number of runs and best time; ADD A STAGE, BACK UP and RESTORE are there and can be pressed; no frame box and no notice while nothing is going on",
                 s.contains("Fraser to Bentong\n4.7 km   3 runs   best ") && s.contains("KKB to Fraser\n4.7 km   2 runs   best ") && !leak(s).isEmpty()
-                        && r.enabled("Mark a new stage") && r.enabled("Back up stages") && r.enabled("Restore from a file") && r.has("Beeps: on")
+                        && r.enabled("Add a stage") && r.enabled("Back up stages") && r.enabled("Restore from a file") && r.has("Beeps: on")
                         && !r.has("Share the last backup") && !r.exact("ARMED") && !r.has("tap to dismiss"), s.replace('\n', '|'));
 
         final Rig empty = rigWithStages(root, "empty", -1, -1);
         Check.ok("ST.UI2 with no stages the screen explains what a stage is and how to make one, and there is nothing to back up",
-                empty.has("No stages yet.") && empty.has("park at the start, press MARK START") && !empty.enabled("Back up stages") && empty.enabled("Mark a new stage"),
+                empty.has("No stages yet.") && empty.has("put a pin at each end of the drive") && !empty.enabled("Back up stages") && empty.enabled("Add a stage"),
                 empty.screen().replace('\n', '|'));
     }
 
@@ -462,9 +462,9 @@ final class StageUiTests {
         final boolean off = !p.enabled("Arm this stage") && !p.tap("Arm this stage") && p.allServiceIntents().isEmpty();
         p.act.onBackPressed();
         p.refresh();
-        final boolean offHome = !p.enabled("Mark a new stage") && p.has("A recording is running or being saved");
+        final boolean offHome = !p.enabled("Add a stage") && p.has("A recording is running or being saved");
         Recorder.LIVE.recording = false;
-        Check.ok("ST.UI6c while an ordinary recording is running or being saved, ARM and MARK A NEW STAGE are off, press nothing, and the page says to stop the recording first",
+        Check.ok("ST.UI6c while an ordinary recording is running or being saved, ARM and ADD A STAGE are off, press nothing, and the page says to stop the recording first",
                 off && offHome, "");
     }
 
@@ -517,7 +517,7 @@ final class StageUiTests {
         // while armed, what cannot be done is off
         live(StageLive.ARMED, true);
         r.refresh();
-        final boolean homeOff = !r.enabled("Mark a new stage") && !r.enabled("Restore from a file");
+        final boolean homeOff = !r.enabled("Add a stage") && !r.enabled("Restore from a file");
         r.tap("Fraser to Bentong");
         final boolean detailOff = !r.enabled("Arm this stage") && !r.enabled("Rename") && !r.enabled("Delete this stage") && !r.enabled("Score the recordings on this phone")
                 && !r.enabled("Score a recording file");
@@ -530,7 +530,8 @@ final class StageUiTests {
         reset();
         final Rig r = rigWithStages(root, "mark", 1, -1);
         r.prefs.edit().putBoolean("stage_ack", true).apply();
-        r.tap("Mark a new stage");
+        r.tap("Add a stage");
+        r.tap("Mark it by parking at both ends");
         final Intent first = r.act.startedForegroundServices.isEmpty() ? null : r.act.startedForegroundServices.get(0);
         // the service has started the recording and says it is waiting for MARK START
         live(StageLive.MARK_START, false);
@@ -555,7 +556,7 @@ final class StageUiTests {
         r.refresh();
         r.tap("Mark finish");
         final Intent mf = r.act.startedServices.get(r.act.startedServices.size() - 1);
-        Check.ok("ST.UI9 marking a stage: MARK A NEW STAGE starts the service in the foreground; step 1 shows the hint and keeps MARK START off until the car is still, with a name box; step 2 hides the box and offers MARK FINISH; "
+        Check.ok("ST.UI9 marking a stage (ADD A STAGE, then MARK IT BY PARKING AT BOTH ENDS): the choice starts the service in the foreground; step 1 shows the hint and keeps MARK START off until the car is still, with a name box; step 2 hides the box and offers MARK FINISH; "
                         + "MARK START and MARK FINISH reach the service, FINISH with the typed name",
                 first != null && RecorderService.ACTION_MARK_NEW.equals(first.getAction()) && page1 && canPress && ms != null && RecorderService.ACTION_MARK_START.equals(ms.getAction())
                         && page2 && RecorderService.ACTION_MARK_FINISH.equals(mf.getAction()) && "Fraser to Bentong".equals(mf.getStringExtra(RecorderService.EXTRA_NAME)),
@@ -695,7 +696,7 @@ final class StageUiTests {
     }
 
     /** Lets a job finish: the worker hands its result to the screen through runOnUiThread, which a test must pump. */
-    private static void spin(Rig r) throws InterruptedException {
+    static void spin(Rig r) throws InterruptedException {
         final long end = System.nanoTime() + 60000L * 1000000L;
         while (r.act.jobRunning && System.nanoTime() < end) {
             r.act.pumpUi();
@@ -961,7 +962,8 @@ final class StageUiTests {
             r.act.startedForegroundServices.clear();
             r.act.onBackPressed();
             r.act.finished = false;
-            r.tap("Mark a new stage");
+            r.tap("Add a stage");
+            r.tap("Mark it by parking at both ends");
             for (Intent i : r.act.startedForegroundServices) h.startService(i);
             final boolean marking = h.awaitRecording(3000) && StageLive.state == StageLive.MARK_START;
             r.refresh();
@@ -970,7 +972,7 @@ final class StageUiTests {
             for (Intent i : r.act.startedServices) h.startService(i);
             final boolean idle2 = ScenarioSTService.idle(h, 6000);
             r.refresh();
-            Check.ok("ST.UI27 MARK A NEW STAGE from the screen starts the service recording in marking mode (the screen follows it to the marking page and MARK START waits for a still car); CANCEL from the screen ends it as an ordinary recording and the screen is back at the list",
+            Check.ok("ST.UI27 ADD A STAGE and MARK IT BY PARKING AT BOTH ENDS from the screen start the service recording in marking mode (the screen follows it to the marking page and MARK START waits for a still car); CANCEL from the screen ends it as an ordinary recording and the screen is back at the list",
                     marking && onMark && idle2 && r.has("YOUR STAGES") && !r.has("Step 1 of 2") && h.quiet(), "marking=" + marking + " onMark=" + onMark + " idle=" + idle2 + " " + r.screen().replace('\n', '|'));
         } finally {
             h.close();

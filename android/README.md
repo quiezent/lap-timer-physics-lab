@@ -7,14 +7,14 @@ The phone app. It does three jobs:
    Python analysis in [`../analysis`](../analysis) turns it into lap times, an ultimate lap and the power-law report.
 2. **Times laps** (version 1.3) from GPS at one built-in line across the main straight at Sepang, and shows the running lap, the last lap against
    the best, and the list of laps. Each crossing is also written to the CSV as a `LAP` event.
-3. **Times stages** (version 1.4): point-to-point roads with a start and a finish that you mark yourself by driving them once. With a stage armed, the phone records from the approach to the start line until just after the finish line, keeps every drive as a run,
+3. **Times stages** (version 1.4, and 1.5 for the new ways of making one): point-to-point roads with a start and a finish. You make a stage by parking at both ends (1.4), by driving first and putting a Start pin and a Finish pin on the recorded drive, or by planning it from two map coordinates and making it from a drive later (1.5). With a stage armed, the phone records from the approach to the start line until just after the finish line, keeps every drive as a run,
    and compares runs afterwards. **It is built for open roads: while the car moves the screen shows words and no numbers**, and the only feedback is a beep. Guide: [`../docs/stages.md`](../docs/stages.md).
 
 It does not yet show any of the coaching ideas from the report. That would be a later build (see the top-level README).
 
 **Status.** Version 1.2 (the recorder) ran on a real phone at Sepang on 13 Oct 2026: a Samsung Galaxy S25 on Android 16, 44 minutes, no data loss.
-Version 1.3 adds the lap timer and 1.4 adds Stages. Version 1.4 passes 324 automated checks on a PC against a simulated Android (315 of them need nothing else; the rest replay the real log's GPS fixes through the lap timer and the stage code, reproducing the 15 lap times of an independent calculation, and score a stage cut out of the real log),
-and the stage method has a second implementation, in Python, written from the method page alone, that reproduces the test files byte for byte. But **neither the 1.3 lap screen nor the 1.4 stage screens have been run on a phone**, and no stage has been driven on a road. If you try them, please open an
+Version 1.3 adds the lap timer, 1.4 adds Stages and 1.5 adds stages without parking. Version 1.5 passes 435 automated checks on a PC against a simulated Android (422 of them need nothing else; the rest replay the real log's GPS fixes through the lap timer, the stage code and the pin code, reproducing the 15 lap times of an independent calculation, and score stages cut out of the real log),
+and the stage method has a second implementation, in Python, written from the method page alone, that reproduces the test files byte for byte; the pin method of 1.5 has one too. But **neither the 1.3 lap screen nor the 1.4 and 1.5 stage screens have been run on a phone**, and no stage has been driven on a road. If you try them, please open an
 issue and say what the screen did.
 
 Needs Android 10 or later, a GPS and an accelerometer; a gyro is strongly recommended. The app has no internet permission.
@@ -26,20 +26,21 @@ Needs Android 10 or later, a GPS and an accelerometer; a gyro is strongly recomm
 | `src/app/tracklog/Exporter.java` | copies the finished file to Downloads |
 | `src/app/tracklog/LapTimer.java` | line crossing, lap times (the Sepang line is a constant at the top of this file) |
 | `src/app/tracklog/MainActivity.java` | the recorder screen (it shows words instead of numbers while a stage is armed or recording) |
-| `src/app/tracklog/StagesActivity.java`, `StageText.java` | the Stages screens: list, a stage and its runs, the comparison with its graph, marking, backup and restore; and every word and number they show, as plain functions so they can be tested |
+| `src/app/tracklog/StagesActivity.java`, `StageText.java` | the Stages screens: list, a stage and its runs, the comparison with its graph, marking, backup and restore; since 1.5 also the ways of adding a stage, the planning page, a planned stage, the list of drives and the pin page; and every word and number they show, as plain functions so they can be tested |
 | `src/app/tracklog/Gate.java`, `Geo.java`, `Pt.java`, `Route.java`, `StageRun.java`, `Scorer.java`, `Compare.java` | the stage method in plain Java ([`../docs/stage-algorithm.md`](../docs/stage-algorithm.md)): a timing line, the flat map frame, a placed fix, the route, following a run, scoring a whole recording, comparing two runs |
-| `src/app/tracklog/StageMarker.java`, `MarkSession.java`, `StageBuilder.java` | marking a stage and building it from the drive |
+| `src/app/tracklog/StageMarker.java`, `MarkSession.java`, `StageBuilder.java` | marking a stage by parking at both ends and building it from the drive |
+| `src/app/tracklog/Track.java`, `PinBuilder.java`, `Coords.java`, `Plan.java`, `TrackView.java` | (1.5) stages from pins: the cleaned track of a recording, putting two pins on it and checking the pair (`docs/stage-algorithm.md` section 11), reading a coordinate typed or pasted from a map, the planned stage (two places and a name), and the picture of the drive with its pins |
 | `src/app/tracklog/ArmedWatcher.java`, `StageSession.java`, `StageWatcher.java`, `StageLive.java`, `ResultGuard.java`, `Beeper.java` | the armed phone: waiting for the start line on the GPS alone, the live run, what the screens may show (`ResultGuard`: numbers only once the car has stopped), the beeps; `RecorderService.java` gained the armed and marking modes |
 | `src/app/tracklog/Stage.java`, `StageFiles.java`, `StageStore.java`, `StageBundle.java`, `StageExporter.java`, `StageRescore.java`, `LogReader.java`, `RunResult.java` | the files ([`../docs/stage-format.md`](../docs/stage-format.md)): reading and writing stages and runs, the backup zip, scoring recordings made earlier |
-| `tests/` | the harness (324 checks with the real log replayed, 315 without) and the fakes of the Android classes it runs against, including the few widgets the two screens use (needs only a JDK): `tests/run.sh` |
+| `tests/` | the harness (435 checks with the real log replayed, 422 without) and the fakes of the Android classes it runs against, including the few widgets the screens use (needs only a JDK): `tests/run.sh` |
 | `build.sh`, `fetch_tools.sh` | build without Gradle or Android Studio (section 6) |
-| `../releases/TrackLogger-1.4.apk` | the built app, with the two earlier APKs (1.3, 1.2) and checksums |
+| `../releases/TrackLogger-1.5.apk` | the built app, with the three earlier APKs (1.4, 1.3, 1.2) and checksums |
 
 
 ## 1. Install the app
 
-1. Get `TrackLogger-1.4.apk` onto the phone (open it in the `releases/` folder of this repository on GitHub and use *Download raw file*, or Drive, email to yourself, USB...).
-   **Updating from 1.2 or 1.3:** install it over the old one (same signing key, higher version number); the permissions and the
+1. Get `TrackLogger-1.5.apk` onto the phone (open it in the `releases/` folder of this repository on GitHub and use *Download raw file*, or Drive, email to yourself, USB...).
+   **Updating from 1.2, 1.3 or 1.4:** install it over the old one (same signing key, higher version number); the permissions and the
    recordings stay. Finish and save any running session first: installing stops the app.
    **Stages live inside the app and Android deletes them when the app is uninstalled** (cloud backup is switched off on purpose). Use *Back up stages* on the Stages screen after you mark one; the backup is a zip in `Downloads/TrackLogger`.
    The APK in this repository is signed with the key I generated when I built 1.2. That key is private and is not in the repository, so an APK you build
@@ -49,7 +50,7 @@ Needs Android 10 or later, a GPS and an accelerometer; a gyro is strongly recomm
    machine, not by Google Play, so this warning is expected. (Google's developer-verification rules went live on
    30 Sep 2026 for Indonesia, Singapore and Thailand, and some reports add Brazil. Google says the rest of the world
    follows during 2027. Malaysia was not on the list when I checked on 12 Oct 2026. If your phone refuses the install
-   anyway, `adb install TrackLogger-1.4.apk` from a computer still works, and Google's "advanced flow" lets you
+   anyway, `adb install TrackLogger-1.5.apk` from a computer still works, and Google's "advanced flow" lets you
    continue after a one-time setup.)
    On Samsung phones, *Auto Blocker* (Settings > Security and privacy) stops all sideloaded installs: switch it off first.
 4. Open **Track Logger**. Tap START. Allow **Precise** location (not "Approximate") and notifications, then tap START again.
@@ -120,8 +121,11 @@ If anything fails, open an issue and say what the screen says. Do not wait until
   curve through the fixes either side, which for the real log agrees with an independent calculation to the millisecond.
   Each crossing is also written to the CSV as an `E,...,LAP,n,seconds` row. The clock shows `-:--.-` until the first pass, and
   GPS must be locked. It is for Sepang only; for another circuit the line has to be changed in `LapTimer.java`.
-* **Stages (1.4).** Everything here is done parked. *Stages* on the main screen; *Mark a new stage*: park at the start and keep still until *Mark start* turns on, press it, drive the road, park at the finish, press *Mark finish* (the app builds the stage from the drive and scores the drive as its first run).
-  To drive it again, open the stage and press *Arm this stage*, put the phone in its mount and drive; the phone starts recording as you move within 400 m of the start line, stops 5 s after the finish line, saves the run and arms itself again. **While a stage is armed or recording the screen shows words, not numbers, and shows no speed or clock on the main screen**; one beep at the start line,
+* **Stages (1.4, 1.5).** Everything here is done parked. *Stages* on the main screen, then *Add a stage*, which offers three ways:
+  *Drive first, pin afterwards* (1.5): record the road as usual, then pick that recording, touch the line to put the Start pin and the Finish pin where the stage starts and ends, fine-tune with the slider and the nudge buttons, and press *Save the stage*; the phone checks the pair and says in words if it cannot make a stage.
+  *Plan from map coordinates* (1.5): paste the start and the finish from Google Maps (touch and hold on the road, copy the two numbers) and save the plan; after you have driven the road with an ordinary recording, open the plan and press *Make the stage from a recording*, and the pins start at your two places on that drive. Starting the first recording by itself is the next release (1.6).
+  *Mark it by parking at both ends* (1.4): park at the start and keep still until *Mark start* turns on, press it, drive the road, park at the finish, press *Mark finish* (the app builds the stage from the drive and scores the drive as its first run).
+  However the stage was made, to drive it again, open the stage and press *Arm this stage*, put the phone in its mount and drive; the phone starts recording as you move within 400 m of the start line, stops 5 s after the finish line, saves the run and arms itself again. **While a stage is armed or recording the screen shows words, not numbers, and shows no speed or clock on the main screen**; one beep at the start line,
   two at the finish line, a low tone if a run is given up (the beeps follow the media volume and can be switched off in the settings of the Stages screen; I have not heard them on a phone). Look at the times when you have stopped. Keep your phone's battery setting on Unrestricted as above, or Android may stop an armed phone with the screen off. Drive legally and safely: a time is never a reason to break a rule.
   The first time you press ARM or MARK the app shows a short road-rules text and waits for you to accept it.
 * **If the app is killed or the screen says NOT SAVED**: reopen it and tap *Re-export last session*. The recording is
@@ -135,7 +139,7 @@ If anything fails, open an issue and say what the screen says. Do not wait until
   both pedals; once the car is power-limited, 70 % and 100 % throttle look alike.
 * **GPS is about 1 Hz.** The 100 Hz traces between fixes come from the inertial sensors. Position (the map, lap line)
   is good to a few metres.
-* **Stage times are good to a few tenths of a second, not to the hundredth**, and worse the slower the car is going at the start and finish lines ([`../docs/stages.md`](../docs/stages.md)). Tight stacked hairpins at a line can fool the timer, and a finish by braking to a stop can be scored "did not finish"; the app does not warn about either yet.
+* **Stage times are good to a few tenths of a second, not to the hundredth**, and worse the slower the car is going at the start and finish lines ([`../docs/stages.md`](../docs/stages.md)). Tight stacked hairpins at a line can fool the timer for a stage marked by parking (a stage made from pins is checked and refused if the road crosses a line again), and a finish by braking to a stop can be scored "did not finish"; the app does not warn about either yet.
   If Android kills the app in the middle of a run, the run is not saved (the recording up to that point is, in `Downloads/TrackLogger`, and *Score the recordings on this phone* finds the run in it).
 * A phone is not a calibrated logger. Use it for shapes, timings and consistency between laps, not for absolute
   engineering numbers. Body roll and pitch leak a little into the lateral and longitudinal channels.

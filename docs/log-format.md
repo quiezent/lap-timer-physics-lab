@@ -20,7 +20,7 @@ Lines starting with `#`, before or among the data rows. They are for people and 
 Suggested content (the Android recorder writes exactly this):
 
 ```
-# TrackLogger 1.4 (raw phone-frame log; process offline with analyze.py)
+# TrackLogger 1.5 (raw phone-frame log; process offline with analyze.py)
 # device,samsung SM-S931B
 # android,16,sdk,36
 # start_utc_ms,1791856598695

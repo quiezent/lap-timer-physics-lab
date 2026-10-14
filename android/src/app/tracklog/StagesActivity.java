@@ -3,6 +3,8 @@ package app.tracklog;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -24,6 +26,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -38,8 +41,16 @@ import java.util.concurrent.Callable;
 
 /**
  * Stages (release 1.4): mark the start and finish of a road once, then drive it as often as you like with the phone armed, and compare
- * the runs afterwards. The screen is a list of pages (HOME, DETAIL of one stage, COMPARE two runs, MARK a new stage) shown one at a
- * time inside one frame that stays put: the status of the armed phone, the road reminder, the result of the last background job.
+ * the runs afterwards. The screen is a list of pages (HOME, DETAIL of one stage or one planned stage, COMPARE two runs, MARK a new stage)
+ * shown one at a time inside one frame that stays put: the status of the armed phone, the road reminder, the result of the last
+ * background job.
+ *
+ * Release 1.5 adds two ways to make a stage that need no parking on the road, both ending in the same kind of stage: NEW offers the ways,
+ * PICK and PIN take a drive that is already recorded and let the person put the start pin and the finish pin on its line, and PLAN takes
+ * the start and the finish as coordinates (typed or pasted from a map) and keeps them as a planned stage until the person makes the
+ * stage from a recording of the drive (PICK and PIN open with the pins at the plan's two places). Arming a plan, so that its first drive
+ * is recorded by itself, is release 1.6 and is not here. The pages with text boxes (MARK, PLAN, PIN) are not rebuilt every refresh, so
+ * what is typed is not lost.
  *
  * The rule for open roads is kept here and nowhere else: while a stage is armed, recording or being marked and the car is not known to
  * be stopped (StageLive.numbersAllowed), no page shows a time, a difference or a comparison. The pages are rebuilt whenever that answer
@@ -60,12 +71,14 @@ public class StagesActivity extends Activity {
     private static final int PANEL = 0xFF1C2128;
     private static final int DARK_ON_GREEN = 0xFF04130A;
 
-    private static final int HOME = 0, DETAIL = 1, COMPARE = 2, MARK = 3;
+    private static final int HOME = 0, DETAIL = 1, COMPARE = 2, MARK = 3, NEW = 4, PLAN = 5, PICK = 6, PIN = 7;
     private static final int BEST = 0, PREVIOUS = 1, FIRST = 2;
-    private static final int REQ_PERM = 21, REQ_RESTORE = 22, REQ_SCORE_FILE = 23;
+    private static final int REQ_PERM = 21, REQ_RESTORE = 22, REQ_SCORE_FILE = 23, REQ_PIN_FILE = 24;
+    private static final int PICK_LIST_MAX = 30;                       // the newest recordings listed on the page that picks a drive
 
     private static final String PREF_ACK = "stage_ack";
     private static final String PREF_MARK_NAME = "stage_mark_name";
+    private static final String PREF_PLAN_NAME = "stage_plan_name", PREF_PLAN_START = "stage_plan_start", PREF_PLAN_FINISH = "stage_plan_finish";
     private static final String NOTIF_PERMISSION = "android.permission.POST_NOTIFICATIONS";   // API 33; a string so this compiles against older stubs
     private static final String PREF_ASKED_NOTIF = "asked_notifications";                    // the same key MainActivity uses: asked once for both screens
 
@@ -100,6 +113,32 @@ public class StagesActivity extends Activity {
     private EditText etName;
     private Button btnMarkStart, btnMarkFinish;
 
+    // the planning page (what is in the boxes is kept here when the page is rebuilt, and in the preferences when the screen goes away)
+    private String planName = "", planStart = "", planFinish = "";
+    private EditText etPlanName, etPlanStart, etPlanFinish;
+    private TextView tvPlanStart, tvPlanFinish, tvPlanApart;
+    private Button btnPlanSave, btnPlanStartMap, btnPlanFinishMap;
+
+    // the pin page: the drive that was picked, where the two pins are, and the views that show them
+    private Track pinTrack;
+    private String pinSource = "";
+    private boolean pinTruncated;
+    private File pinFile;                           // the drive came from a file of the app's own ...
+    private Uri pinUri;                             // ... or from a file the person picked
+    private final double[] pinS = {-1.0, -1.0};     // the pins, as distances along the drive
+    private int pinActive;                          // 0: the start pin is the one being moved, 1: the finish pin
+    private boolean pinDirty, pinOk;
+    private String pinNameText = "";
+    private EditText etPinName;
+    private TrackView overview, closeup;
+    private SeekBar seek;
+    private Button btnPinStart, btnPinFinish, btnPinSave;
+    private TextView tvPinPos, tvPinCheck;
+    // handed from the worker thread that reads a drive to the screen
+    private volatile Track loadedTrack;
+    private volatile boolean loadedTruncated;
+    private volatile String loadedName = "";
+
     // ------------------------------------------------------------------ life
 
     @Override
@@ -107,6 +146,9 @@ public class StagesActivity extends Activity {
         super.onCreate(b);
         store = new StageStore(new File(getFilesDir(), "stages"));
         seenMarkedSeq = StageLive.markedSeq;
+        planName = prefs().getString(PREF_PLAN_NAME, "");
+        planStart = prefs().getString(PREF_PLAN_START, "");
+        planFinish = prefs().getString(PREF_PLAN_FINISH, "");
         buildFrame();
         rebuildNow();
     }
@@ -122,14 +164,19 @@ public class StagesActivity extends Activity {
     protected void onPause() {
         super.onPause();
         ui.removeCallbacks(refresher);
-        saveMarkName();
+        saveForms();
+        if (page == PLAN && stageId.length() == 0) {
+            prefs().edit().putString(PREF_PLAN_NAME, planName).putString(PREF_PLAN_START, planStart).putString(PREF_PLAN_FINISH, planFinish).apply();
+        }
     }
 
     @Override
     @SuppressWarnings("deprecation")        // targets API 33: the system still calls this on every Android version the app runs on
     public void onBackPressed() {
         if (page == COMPARE) go(DETAIL, stageId, "");
-        else if (page == DETAIL) go(HOME, "", "");
+        else if (page == DETAIL || page == NEW) go(HOME, "", "");
+        else if (page == PLAN || page == PICK) go(stageId.length() > 0 ? DETAIL : NEW, stageId, "");
+        else if (page == PIN) go(PICK, stageId, "");
         else finish();
     }
 
@@ -330,7 +377,7 @@ public class StagesActivity extends Activity {
     // ------------------------------------------------------------------ refresh and navigation
 
     private String key() {
-        if (page == MARK) return "mark";
+        if (page == MARK || page == PLAN || page == PIN) return "fixed" + page + "|" + stageId;      // pages with text boxes: rebuilt only when the person moves
         return page + "|" + stageId + "|" + runId + "|" + against + "|" + StageLive.busy() + "|" + plainRecording() + "|"
                 + StageLive.numbersAllowed() + "|" + dataVersion + "|" + StageLive.lastRunSeq + "|" + jobRunning;
     }
@@ -359,6 +406,8 @@ public class StagesActivity extends Activity {
             }
             if (!key().equals(builtKey)) rebuildNow();
             else if (page == MARK) updateMark();
+            else if (page == PLAN) updatePlan();
+            else if (page == PIN) updatePin();
             updateLive();
         } catch (RuntimeException e) {
             // this screen shares a process with the recording: a mistake here must not stop it
@@ -367,7 +416,8 @@ public class StagesActivity extends Activity {
     }
 
     private void go(int p, String sid, String rid) {
-        saveMarkName();
+        saveForms();
+        if (p != PIN) clearPin();
         if (p != page || !sid.equals(stageId) || !rid.equals(runId)) against = BEST;
         page = p;
         stageId = sid;
@@ -378,26 +428,72 @@ public class StagesActivity extends Activity {
 
     private void rebuildNow() {
         builtKey = key();
-        saveMarkName();
+        saveForms();
         body.removeAllViews();
         etName = null;
         tvMarkStep = null;
         btnMarkStart = null;
         btnMarkFinish = null;
+        etPlanName = null;
+        etPlanStart = null;
+        etPlanFinish = null;
+        tvPlanStart = null;
+        tvPlanFinish = null;
+        tvPlanApart = null;
+        btnPlanSave = null;
+        btnPlanStartMap = null;
+        btnPlanFinishMap = null;
+        etPinName = null;
+        overview = null;
+        closeup = null;
+        seek = null;
+        btnPinStart = null;
+        btnPinFinish = null;
+        btnPinSave = null;
+        tvPinPos = null;
+        tvPinCheck = null;
         switch (page) {
             case DETAIL: buildDetail(); break;
             case COMPARE: buildCompare(); break;
             case MARK: buildMark(); break;
+            case NEW: buildNew(); break;
+            case PLAN: buildPlan(); break;
+            case PICK: buildPick(); break;
+            case PIN: buildPin(); break;
             default: buildHome(); break;
         }
         btnBack.setText(page == HOME || page == MARK ? "Track Logger" : "Back");
-        tvTitle.setText(page == MARK ? "NEW STAGE" : page == COMPARE ? "COMPARE" : page == DETAIL ? detailTitle() : "STAGES");
+        tvTitle.setText(titleOf());
         updateLive();
+    }
+
+    private String titleOf() {
+        switch (page) {
+            case MARK: return "NEW STAGE";
+            case COMPARE: return "COMPARE";
+            case DETAIL: return detailTitle();
+            case NEW: return "ADD A STAGE";
+            case PLAN: return stageId.length() > 0 ? "CHANGE THE PLACES" : "PLAN A STAGE";
+            case PICK: return "PICK A DRIVE";
+            case PIN: return "PLACE THE PINS";
+            default: return "STAGES";
+        }
     }
 
     private String detailTitle() {
         final Stage s = store.load(stageId);
-        return s == null ? "STAGE" : s.name();
+        if (s != null) return s.name();
+        final Plan p = store.loadPlan(stageId);
+        return p == null ? "STAGE" : p.name();
+    }
+
+    /** What is typed in the text boxes of whichever page has them, kept so that rebuilding the page does not lose it. */
+    private void saveForms() {
+        saveMarkName();
+        if (etPlanName != null) planName = etPlanName.getText().toString();
+        if (etPlanStart != null) planStart = etPlanStart.getText().toString();
+        if (etPlanFinish != null) planFinish = etPlanFinish.getText().toString();
+        if (etPinName != null) pinNameText = etPinName.getText().toString();
     }
 
     // ------------------------------------------------------------------ HOME
@@ -406,19 +502,30 @@ public class StagesActivity extends Activity {
         final boolean busy = StageLive.busy(), plain = plainRecording();
         final boolean numbers = StageLive.numbersAllowed();
 
-        final Button mark = button("Mark a new stage", GREEN, DARK_ON_GREEN, new View.OnClickListener() {
-            @Override public void onClick(View v) { onMarkNew(); }
+        final Button addStage = button("Add a stage", GREEN, DARK_ON_GREEN, new View.OnClickListener() {
+            @Override public void onClick(View v) { if (canStartSomething()) go(NEW, "", ""); }
         });
-        add(body, mark, 0, 64);
-        enable(mark, !busy && !plain && !jobRunning);
-        if (plain && !busy) add(body, text("A recording is running or being saved. Stop it before marking or arming a stage.", 13, AMBER, false, false), 6, 0);
+        add(body, addStage, 0, 64);
+        enable(addStage, !busy && !plain && !jobRunning);
+        if (plain && !busy) add(body, text("A recording is running or being saved. Stop it before adding or arming a stage.", 13, AMBER, false, false), 6, 0);
 
         final List<Stage> stages = store.list();
-        if (stages.isEmpty()) {
-            add(body, text("No stages yet.\n\nA stage is a stretch of road with a start and a finish. To make one, drive it once: park at the "
-                    + "start, press MARK START, drive to the finish, park, press MARK FINISH.\n\nAfter that, ARM the stage and the phone "
-                    + "records by itself from the start line to the finish line, every time you drive it.", 15, FG, false, false), 18, 0);
-        } else {
+        final List<Plan> plans = store.listPlans();
+        if (stages.isEmpty() && plans.isEmpty()) {
+            add(body, text("No stages yet.\n\nA stage is a stretch of road with a start and a finish. Add one without stopping on the road: "
+                    + "drive it as usual and put a pin at each end of the drive afterwards, or copy the start and the finish from Google Maps.\n\n"
+                    + "After that, ARM the stage and the phone records by itself from the start line to the finish line, every time you drive it.",
+                    15, FG, false, false), 18, 0);
+        }
+        if (!plans.isEmpty()) {
+            section("PLANNED STAGES");
+            for (final Plan pl : plans) {
+                add(body, card(StageText.planRow(pl), new View.OnClickListener() {
+                    @Override public void onClick(View v) { go(DETAIL, pl.id, ""); }
+                }), 8, 0);
+            }
+        }
+        if (!stages.isEmpty()) {
             section("YOUR STAGES");
             for (final Stage s : stages) {
                 final List<RunResult> runs = store.runs(s.id);
@@ -474,6 +581,11 @@ public class StagesActivity extends Activity {
     private void buildDetail() {
         final Stage st = store.load(stageId);
         if (st == null) {
+            final Plan planned = store.loadPlan(stageId);
+            if (planned != null) {
+                buildPlanDetail(planned);
+                return;
+            }
             page = HOME;
             stageId = "";
             setNotice("That stage is not on the phone any more.");
@@ -770,6 +882,689 @@ public class StagesActivity extends Activity {
         send(RecorderService.ACTION_MARK_FINISH, false, RecorderService.EXTRA_NAME, markName());
     }
 
+    // ------------------------------------------------------------------ NEW: the ways to add a stage
+
+    private float density() {
+        return getResources().getDisplayMetrics().density;
+    }
+
+    private void buildNew() {
+        final boolean can = canStartSomething();
+        add(body, text(StageText.ADD_INTRO, 15, FG, false, false), 0, 0);
+
+        final Button pin = button(StageText.WAY_PIN_TITLE, GREEN, DARK_ON_GREEN, new View.OnClickListener() {
+            @Override public void onClick(View v) { if (canStartSomething()) go(PICK, "", ""); }
+        });
+        add(body, pin, 18, 64);
+        enable(pin, can);
+        add(body, text(StageText.WAY_PIN_BODY, 13, DIM, false, false), 6, 0);
+
+        final Button plan = button(StageText.WAY_PLAN_TITLE, GREEN, DARK_ON_GREEN, new View.OnClickListener() {
+            @Override public void onClick(View v) { if (canStartSomething()) enterPlan(""); }
+        });
+        add(body, plan, 18, 64);
+        enable(plan, can);
+        add(body, text(StageText.WAY_PLAN_BODY, 13, DIM, false, false), 6, 0);
+
+        final Button park = button(StageText.WAY_PARK_TITLE, PANEL, FG, new View.OnClickListener() {
+            @Override public void onClick(View v) { onMarkNew(); }
+        });
+        add(body, park, 18, 64);
+        enable(park, can);
+        add(body, text(StageText.WAY_PARK_BODY, 13, DIM, false, false), 6, 0);
+    }
+
+    // ------------------------------------------------------------------ a planned stage
+
+    private void buildPlanDetail(final Plan p) {
+        final boolean busy = StageLive.busy(), plain = plainRecording();
+        add(body, text(StageText.planDetail(p), 15, FG, false, false), 0, 0);
+
+        section("WHEN YOU HAVE DRIVEN IT");
+        add(body, text(StageText.PLAN_DRIVE_NOTE, 13, DIM, false, false), 4, 0);
+        final Button pick = button("Make the stage from a recording", GREEN, DARK_ON_GREEN, new View.OnClickListener() {
+            @Override public void onClick(View v) { if (canStartSomething()) go(PICK, p.id, ""); }
+        });
+        add(body, pick, 10, 64);
+        enable(pick, !busy && !plain && !jobRunning);
+
+        section("THIS PLAN");
+        add(body, button("Show the start on a map", PANEL, FG, new View.OnClickListener() {
+            @Override public void onClick(View v) { showOnMap(p.startLat, p.startLon, p.name() + " start"); }
+        }), 8, 52);
+        add(body, button("Show the finish on a map", PANEL, FG, new View.OnClickListener() {
+            @Override public void onClick(View v) { showOnMap(p.finishLat, p.finishLon, p.name() + " finish"); }
+        }), 8, 52);
+        final Button change = button("Change the places", PANEL, FG, new View.OnClickListener() {
+            @Override public void onClick(View v) { enterPlan(p.id); }
+        });
+        add(body, change, 8, 52);
+        enable(change, !busy);
+        final Button rename = button("Rename", PANEL, FG, new View.OnClickListener() {
+            @Override public void onClick(View v) { onRenamePlan(p); }
+        });
+        add(body, rename, 8, 52);
+        enable(rename, !busy);
+        final Button delete = button("Delete this plan", PANEL, RED, new View.OnClickListener() {
+            @Override public void onClick(View v) { confirmDeletePlan(p); }
+        });
+        add(body, delete, 8, 52);
+        enable(delete, !busy);
+    }
+
+    private void onRenamePlan(final Plan p) {
+        final EditText et = field("", p.name(), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        new AlertDialog.Builder(this)
+                .setTitle("Rename the plan")
+                .setView(et)
+                .setPositiveButton("Save", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int which) {
+                        try {
+                            final Plan q = store.loadPlan(p.id);
+                            if (q != null && !StageLive.busy()) {
+                                q.rename(et.getText().toString());
+                                store.savePlan(q);
+                            }
+                        } catch (java.io.IOException e) {
+                            Toast.makeText(StagesActivity.this, "Could not save the new name.", Toast.LENGTH_LONG).show();
+                        }
+                        dataVersion++;
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void confirmDeletePlan(final Plan p) {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete the plan " + p.name() + "?")
+                .setMessage("The plan is removed from the phone. Nothing else is lost: it has no runs.")
+                .setPositiveButton("Delete", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int which) {
+                        if (!StageLive.busy()) store.delete(p.id);
+                        dataVersion++;
+                        go(HOME, "", "");
+                        setNotice("Deleted the plan " + p.name() + ".");
+                    }
+                })
+                .setNegativeButton("Keep it", null)
+                .show();
+    }
+
+    // ------------------------------------------------------------------ PLAN: the start and the finish as coordinates
+
+    private EditText field(String hint, String value, int inputType) {
+        final EditText et = new EditText(this);
+        et.setSingleLine(true);
+        et.setInputType(inputType);
+        et.setTextColor(FG);
+        et.setHintTextColor(DIM);
+        et.setHint(hint);
+        et.setBackgroundColor(PANEL);
+        et.setPadding(dp(14), dp(12), dp(14), dp(12));
+        et.setText(value);
+        return et;
+    }
+
+    /** Two buttons side by side. */
+    private LinearLayout row(Button... buttons) {
+        final LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        for (int i = 0; i < buttons.length; i++) {
+            final LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), 1f);
+            lp.leftMargin = i == 0 ? 0 : dp(6);
+            r.addView(buttons[i], lp);
+        }
+        return r;
+    }
+
+    private Button small(String label, int bg, int fg, float sp, View.OnClickListener l) {
+        final Button bt = button(label, bg, fg, l);
+        bt.setTextSize(sp);
+        return bt;
+    }
+
+    /** Begin planning: a new plan (editId "") with what was typed last time, or the places of an existing plan. */
+    private void enterPlan(String editId) {
+        if (editId.length() == 0) {
+            planName = prefs().getString(PREF_PLAN_NAME, "");
+            planStart = prefs().getString(PREF_PLAN_START, "");
+            planFinish = prefs().getString(PREF_PLAN_FINISH, "");
+        } else {
+            final Plan p = store.loadPlan(editId);
+            if (p == null) {
+                go(HOME, "", "");
+                setNotice("That plan is not on the phone any more.");
+                return;
+            }
+            planName = p.name();
+            planStart = Coords.format(p.startLat, p.startLon);
+            planFinish = Coords.format(p.finishLat, p.finishLon);
+        }
+        go(PLAN, editId, "");
+    }
+
+    private void buildPlan() {
+        add(body, text(StageText.PLAN_HOW, 14, FG, false, false), 0, 0);
+        add(body, button("Open Google Maps", PANEL, FG, new View.OnClickListener() {
+            @Override public void onClick(View v) { openGoogleMaps(); }
+        }), 12, 52);
+
+        add(body, text("Name (you can change it later)", 13, DIM, true, false), 18, 0);
+        etPlanName = field("For example Fraser to Bentong", planName.length() > 0 ? planName : defaultName(),
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        add(body, etPlanName, 6, 0);
+
+        add(body, text("Start", 13, DIM, true, false), 18, 0);
+        etPlanStart = field("Latitude, longitude", planStart, InputType.TYPE_CLASS_TEXT);
+        add(body, etPlanStart, 6, 0);
+        tvPlanStart = text("", 13, DIM, false, false);
+        add(body, tvPlanStart, 6, 0);
+        btnPlanStartMap = small("Show the start on a map", PANEL, FG, 13, new View.OnClickListener() {
+            @Override public void onClick(View v) { showTyped(etPlanStart, "Start"); }
+        });
+        add(body, row(small("Paste the start", PANEL, FG, 13, new View.OnClickListener() {
+            @Override public void onClick(View v) { onPaste(etPlanStart); }
+        }), btnPlanStartMap), 8, 0);
+
+        add(body, text("Finish", 13, DIM, true, false), 18, 0);
+        etPlanFinish = field("Latitude, longitude", planFinish, InputType.TYPE_CLASS_TEXT);
+        add(body, etPlanFinish, 6, 0);
+        tvPlanFinish = text("", 13, DIM, false, false);
+        add(body, tvPlanFinish, 6, 0);
+        btnPlanFinishMap = small("Show the finish on a map", PANEL, FG, 13, new View.OnClickListener() {
+            @Override public void onClick(View v) { showTyped(etPlanFinish, "Finish"); }
+        });
+        add(body, row(small("Paste the finish", PANEL, FG, 13, new View.OnClickListener() {
+            @Override public void onClick(View v) { onPaste(etPlanFinish); }
+        }), btnPlanFinishMap), 8, 0);
+
+        add(body, button("Swap start and finish", PANEL, FG, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                final String a = etPlanStart.getText().toString();
+                etPlanStart.setText(etPlanFinish.getText().toString());
+                etPlanFinish.setText(a);
+                updatePlan();
+            }
+        }), 14, 52);
+
+        tvPlanApart = text("", 13, DIM, false, false);
+        add(body, tvPlanApart, 12, 0);
+        btnPlanSave = button(stageId.length() > 0 ? "Save the new places" : "Save the plan", GREEN, DARK_ON_GREEN, new View.OnClickListener() {
+            @Override public void onClick(View v) { onPlanSave(); }
+        });
+        add(body, btnPlanSave, 14, 64);
+        add(body, text(StageText.PLAN_NEXT, 12, DIM, false, false), 10, 0);
+        updatePlan();
+    }
+
+    /** Every refresh while the page is showing: say what was read from each box, and let SAVE through only when both can be used. */
+    private void updatePlan() {
+        if (etPlanStart == null || etPlanFinish == null || btnPlanSave == null) return;
+        final String a = etPlanStart.getText().toString(), b = etPlanFinish.getText().toString();
+        final Coords.Result ra = Coords.parse(a), rb = Coords.parse(b);
+        final boolean emptyA = a.trim().length() == 0, emptyB = b.trim().length() == 0;
+        tvPlanStart.setText(emptyA ? "Paste or type the place where the stage starts." : StageText.placeRead("Start", ra));
+        tvPlanStart.setTextColor(emptyA || ra.ok ? DIM : AMBER);
+        tvPlanFinish.setText(emptyB ? "Paste or type the place where the stage ends." : StageText.placeRead("Finish", rb));
+        tvPlanFinish.setTextColor(emptyB || rb.ok ? DIM : AMBER);
+        enable(btnPlanStartMap, ra.ok);
+        enable(btnPlanFinishMap, rb.ok);
+        boolean far = false;
+        String apart = "";
+        if (ra.ok && rb.ok) {
+            final double d = Geo.distance(ra.lat, ra.lon, rb.lat, rb.lon);
+            far = d >= PinBuilder.MIN_SEPARATION_M;
+            apart = far ? StageText.planApart(d) : "These two places are only " + StageText.dist(d) + " apart. A stage runs from one place to "
+                    + "another at least " + StageText.dist(PinBuilder.MIN_SEPARATION_M) + " away.";
+        }
+        tvPlanApart.setText(apart);
+        tvPlanApart.setTextColor(ra.ok && rb.ok && !far ? AMBER : DIM);
+        enable(btnPlanSave, ra.ok && rb.ok && far && canStartSomething());
+    }
+
+    private void onPlanSave() {
+        if (!canStartSomething()) return;
+        saveForms();
+        final Coords.Result a = Coords.parse(planStart), b = Coords.parse(planFinish);
+        if (!a.ok || !b.ok || Geo.distance(a.lat, a.lon, b.lat, b.lon) < PinBuilder.MIN_SEPARATION_M) return;
+        final String name = Stage.cleanName(planName.trim().length() > 0 ? planName : defaultName());
+        final String editId = stageId;
+        try {
+            final Plan p;
+            if (editId.length() > 0) {
+                final Plan old = store.loadPlan(editId);
+                if (old == null) {
+                    setNotice("That plan is not on the phone any more.");
+                    return;
+                }
+                p = new Plan(old.id, name, old.createdUtcMs, a.lat, a.lon, b.lat, b.lon);
+            } else {
+                final long now = System.currentTimeMillis();
+                p = new Plan(store.newId(now), name, now, a.lat, a.lon, b.lat, b.lon);
+            }
+            store.savePlan(p);
+            dataVersion++;
+            go(DETAIL, p.id, "");
+            setNotice(editId.length() > 0 ? "The places are saved." : "Planned. Arm it when you are ready to drive the road once.");
+            if (editId.length() == 0) {
+                planName = "";
+                planStart = "";
+                planFinish = "";
+                prefs().edit().remove(PREF_PLAN_NAME).remove(PREF_PLAN_START).remove(PREF_PLAN_FINISH).apply();
+            }
+        } catch (java.io.IOException e) {
+            setNotice("Could not save the plan (is the phone full?).");
+        }
+    }
+
+    /** The text on the clipboard, or "" if there is none or the phone will not say. */
+    private String clipboardText() {
+        try {
+            final ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (cm == null || !cm.hasPrimaryClip()) return "";
+            final ClipData cd = cm.getPrimaryClip();
+            if (cd == null || cd.getItemCount() == 0) return "";
+            final CharSequence t = cd.getItemAt(0).coerceToText(this);
+            return t == null ? "" : t.toString();
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    private void onPaste(EditText target) {
+        final String t = clipboardText().trim();
+        if (t.length() == 0) {
+            Toast.makeText(this, StageText.PASTE_EMPTY, Toast.LENGTH_LONG).show();
+            return;
+        }
+        target.setText(t);
+        updatePlan();
+    }
+
+    private void showTyped(EditText source, String label) {
+        final Coords.Result r = Coords.parse(source.getText().toString());
+        if (r.ok) showOnMap(r.lat, r.lon, label);
+    }
+
+    private void openGoogleMaps() {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps")));
+        } catch (Exception e) {
+            Toast.makeText(this, "No app found to open Google Maps.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    // ------------------------------------------------------------------ PICK: which drive
+
+    private void buildPick() {
+        final boolean can = canStartSomething();
+        final Plan plan = stageId.length() > 0 ? store.loadPlan(stageId) : null;
+        add(body, text((plan != null ? "Making " + plan.name() + " from a drive. " : "") + StageText.PICK_INTRO, 15, FG, false, false), 0, 0);
+
+        section("RECORDINGS ON THIS PHONE");
+        final List<File> files = sessionFiles();
+        if (files.isEmpty()) {
+            add(body, text("There are no recordings on this phone yet. Record a drive with START on the main screen, then come back; "
+                    + "or pick a recording file from somewhere else (below).", 14, FG, false, false), 8, 0);
+        } else {
+            Collections.reverse(files);                                    // newest first (the names start with the date)
+            if (files.size() > PICK_LIST_MAX) {
+                add(body, text("The newest " + PICK_LIST_MAX + " of " + files.size() + " recordings.", 12, DIM, false, false), 4, 0);
+            }
+            for (int i = 0; i < files.size() && i < PICK_LIST_MAX; i++) {
+                final File f = files.get(i);
+                final TextView row = card(StageText.recordingRow(f.getName(), f.length()), new View.OnClickListener() {
+                    @Override public void onClick(View v) { onPickRecording(f); }
+                });
+                add(body, row, 8, 0);
+                enable(row, can);
+            }
+        }
+        section("FROM A FILE");
+        final Button file = button("Pick a recording file", PANEL, FG, new View.OnClickListener() {
+            @Override public void onClick(View v) { if (canStartSomething()) pickFile(REQ_PIN_FILE); }
+        });
+        add(body, file, 8, 52);
+        enable(file, can);
+    }
+
+    private void onPickRecording(File f) {
+        if (!canStartSomething()) return;
+        loadDrive(f, null);
+    }
+
+    /** Reads a drive (a file of the app's own, or a picked one) on a worker thread, then shows the pin page. */
+    private void loadDrive(final File file, final Uri uri) {
+        final android.content.Context app = getApplicationContext();
+        loadedTrack = null;
+        runJob("Reading the drive...", new Callable<String>() {
+            @Override public String call() {
+                try {
+                    final LogReader.Log log;
+                    if (file != null) {
+                        log = LogReader.read(file);
+                    } else {
+                        final java.io.InputStream in = app.getContentResolver().openInputStream(uri);
+                        if (in == null) return "That file could not be opened.";
+                        log = LogReader.read(in, StageExporter.displayName(app, uri));
+                    }
+                    loadedTruncated = log.truncated;
+                    loadedTrack = Track.of(log.fixes);
+                    loadedName = log.name;
+                    return "";
+                } catch (PinBuilder.Refused e) {
+                    return e.getMessage();
+                } catch (java.io.IOException e) {
+                    return "That file could not be read.";
+                } catch (RuntimeException e) {
+                    return "That file could not be read.";
+                }
+            }
+        }, new Runnable() {
+            @Override public void run() {
+                final Track t = loadedTrack;
+                loadedTrack = null;
+                if (t == null || page != PICK) return;                 // not read, or the person has gone back while it was being read
+                pinTrack = t;
+                pinSource = loadedName;
+                pinTruncated = loadedTruncated;
+                pinFile = file;
+                pinUri = uri;
+                final String note = initPins();
+                go(PIN, stageId, "");
+                if (note.length() > 0) setNotice(note);
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------ PIN: put the start and the finish on the drive
+
+    private void clearPin() {
+        pinTrack = null;
+        pinSource = "";
+        pinTruncated = false;
+        pinFile = null;
+        pinUri = null;
+        pinS[0] = -1.0;
+        pinS[1] = -1.0;
+        pinActive = 0;
+        pinDirty = false;
+        pinOk = false;
+        pinNameText = "";
+    }
+
+    /** The first positions of the pins: the ends of the drive, or the places of the plan that is being completed. Returns a notice, "" if none. */
+    private String initPins() {
+        final double len = pinTrack.length;
+        pinS[0] = Math.min(PinBuilder.MARGIN_M, len);
+        pinS[1] = Math.max(0.0, len - PinBuilder.MARGIN_M);
+        pinActive = 0;
+        pinNameText = "";
+        final Plan plan = stageId.length() > 0 ? store.loadPlan(stageId) : null;
+        if (plan == null) return "";
+        pinNameText = plan.name();
+        final List<Track.Pass> as = pinTrack.passes(plan.startLat, plan.startLon), bs = pinTrack.passes(plan.finishLat, plan.finishLon);
+        final StringBuilder note = new StringBuilder();
+        if (as.isEmpty()) note.append("The start place of the plan is not on this drive, so the start pin is at the beginning of it. ");
+        else pinS[0] = as.get(0).s;
+        if (bs.isEmpty()) {
+            note.append("The finish place of the plan is not on this drive, so the finish pin is at the end of it. ");
+        } else {
+            double pick = bs.get(0).s;
+            for (Track.Pass q : bs) {
+                if (q.s > pinS[0]) {
+                    pick = q.s;
+                    break;
+                }
+            }
+            pinS[1] = pick;
+        }
+        return note.toString().trim();
+    }
+
+    private void buildPin() {
+        if (pinTrack == null) {
+            page = HOME;
+            stageId = "";
+            setNotice("That drive is not loaded any more. Pick it again.");
+            builtKey = key();
+            buildHome();
+            return;
+        }
+        add(body, text(StageText.pinHeader(pinSource, pinTrack.length)
+                + (pinTruncated ? " Only the first part of a very long recording was read." : ""), 14, DIM, false, false), 0, 0);
+        add(body, text(StageText.PIN_HELP, 13, FG, false, false), 8, 0);
+
+        final TrackView.Listener touch = new TrackView.Listener() {
+            @Override public void onPick(double s) {
+                pinS[pinActive] = s;
+                pinMoved();
+            }
+        };
+        overview = new TrackView(this, TrackView.OVERVIEW, density());
+        overview.set(pinTrack);
+        overview.setListener(touch);
+        add(body, overview, 12, 240);
+        closeup = new TrackView(this, TrackView.CLOSEUP, density());
+        closeup.set(pinTrack);
+        closeup.setListener(touch);
+        add(body, closeup, 10, 200);
+
+        btnPinStart = small("Start pin", GREEN, DARK_ON_GREEN, 14, new View.OnClickListener() {
+            @Override public void onClick(View v) { setActivePin(0); }
+        });
+        btnPinFinish = small("Finish pin", PANEL, FG, 14, new View.OnClickListener() {
+            @Override public void onClick(View v) { setActivePin(1); }
+        });
+        add(body, row(btnPinStart, btnPinFinish), 14, 0);
+        tvPinPos = text("", 14, FG, false, false);
+        add(body, tvPinPos, 10, 0);
+
+        seek = new SeekBar(this);
+        seek.setMax((int) Math.floor(pinTrack.length));
+        seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
+                if (!fromUser) return;                                 // the screen moving the thumb itself is not the person
+                pinS[pinActive] = progress;
+                pinMoved();
+            }
+            @Override public void onStartTrackingTouch(SeekBar sb) { }
+            @Override public void onStopTrackingTouch(SeekBar sb) { }
+        });
+        add(body, seek, 8, 40);
+
+        final String[] labels = {"-500 m", "-50 m", "-5 m", "+5 m", "+50 m", "+500 m"};
+        final double[] steps = {-500.0, -50.0, -5.0, 5.0, 50.0, 500.0};
+        final Button[] nudges = new Button[labels.length];
+        for (int i = 0; i < labels.length; i++) {
+            final double step = steps[i];
+            nudges[i] = small(labels[i], PANEL, FG, 12, new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    pinS[pinActive] += step;
+                    pinMoved();
+                }
+            });
+        }
+        add(body, row(nudges), 6, 0);
+        add(body, row(small("Open in Google Maps", PANEL, FG, 13, new View.OnClickListener() {
+            @Override public void onClick(View v) { onPinMap(); }
+        }), small("Set from coordinates", PANEL, FG, 13, new View.OnClickListener() {
+            @Override public void onClick(View v) { onPinFromCoordinates(); }
+        })), 10, 0);
+
+        add(body, text("Name (you can change it later)", 13, DIM, true, false), 18, 0);
+        etPinName = field("For example Fraser to Bentong", pinNameText.length() > 0 ? pinNameText : defaultName(),
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        add(body, etPinName, 6, 0);
+        tvPinCheck = text("", 13, DIM, false, false);
+        add(body, tvPinCheck, 14, 0);
+        btnPinSave = button("Save the stage", GREEN, DARK_ON_GREEN, new View.OnClickListener() {
+            @Override public void onClick(View v) { onPinSave(); }
+        });
+        add(body, btnPinSave, 10, 64);
+        add(body, text("The drive you picked is scored against the new stage as its first run. Pins go exactly where you put them.", 12, DIM, false, false), 10, 0);
+
+        syncPin();
+        updatePinCheck();
+        enable(btnPinSave, pinOk && canStartSomething());
+    }
+
+    private void setActivePin(int which) {
+        pinActive = which == 1 ? 1 : 0;
+        pinMoved();
+    }
+
+    /** A pin was moved, or the other pin was chosen: what the screen said about the last thing done no longer applies. */
+    private void pinMoved() {
+        if (!jobRunning) setNotice("");
+        syncPin();
+    }
+
+    /** Draws the pins where they are, in both pictures, the slider and the words; the check of the stage they make is done on the next refresh. */
+    private void syncPin() {
+        if (pinTrack == null || overview == null || seek == null) return;
+        final double len = pinTrack.length;
+        for (int k = 0; k < 2; k++) pinS[k] = Math.max(0.0, Math.min(len, pinS[k]));
+        overview.setPins(pinS[0], pinS[1], pinActive);
+        closeup.setPins(pinS[0], pinS[1], pinActive);
+        seek.setProgress((int) Math.round(pinS[pinActive]));
+        final double[] ll = pinTrack.latLonAt(pinS[pinActive]);
+        tvPinPos.setText(StageText.pinPosition(pinActive, pinS[pinActive], len, ll[0], ll[1]));
+        btnPinStart.setBackgroundColor(pinActive == 0 ? GREEN : PANEL);
+        btnPinStart.setTextColor(pinActive == 0 ? DARK_ON_GREEN : FG);
+        btnPinFinish.setBackgroundColor(pinActive == 1 ? RED : PANEL);
+        btnPinFinish.setTextColor(pinActive == 1 ? 0xFFFFFFFF : FG);
+        pinDirty = true;
+    }
+
+    private void updatePin() {
+        if (pinTrack == null || btnPinSave == null) return;
+        if (pinDirty) updatePinCheck();
+        enable(btnPinSave, pinOk && canStartSomething());
+    }
+
+    /** What the two pins make: a stage (how long, and anything the person should know), or the reason they do not. */
+    private void updatePinCheck() {
+        pinDirty = false;
+        if (pinTrack == null || tvPinCheck == null) return;
+        try {
+            final PinBuilder.Result r = PinBuilder.build("pin_check", "check", 0L, pinTrack,
+                    PinBuilder.Pin.atPosition(pinS[0]), PinBuilder.Pin.atPosition(pinS[1]));
+            pinOk = true;
+            tvPinCheck.setText(StageText.pinCheck(r));
+            tvPinCheck.setTextColor(GREEN);
+        } catch (PinBuilder.Refused e) {
+            pinOk = false;
+            tvPinCheck.setText(e.getMessage());
+            tvPinCheck.setTextColor(AMBER);
+        }
+    }
+
+    private void onPinMap() {
+        if (pinTrack == null) return;
+        final double[] ll = pinTrack.latLonAt(pinS[pinActive]);
+        showOnMap(ll[0], ll[1], pinActive == 0 ? "Start pin" : "Finish pin");
+    }
+
+    private void onPinFromCoordinates() {
+        if (pinTrack == null) return;
+        final double[] cur = pinTrack.latLonAt(pinS[pinActive]);
+        final String clip = clipboardText().trim();
+        final EditText et = field("Latitude, longitude", Coords.parse(clip).ok ? clip : Coords.format(cur[0], cur[1]), InputType.TYPE_CLASS_TEXT);
+        new AlertDialog.Builder(this)
+                .setTitle(pinActive == 0 ? "Start pin from coordinates" : "Finish pin from coordinates")
+                .setMessage("Type or paste a place from a map. The pin goes to the nearest point of this drive.")
+                .setView(et)
+                .setPositiveButton("Set", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int which) { setPinFromText(et.getText().toString()); }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    /** Moves the active pin to where the drive passes a place. A place the drive never goes near is refused with the reason. */
+    private void setPinFromText(String text) {
+        if (pinTrack == null) return;
+        final Coords.Result r = Coords.parse(text);
+        if (!r.ok) {
+            Toast.makeText(this, r.message, Toast.LENGTH_LONG).show();
+            return;
+        }
+        final List<Track.Pass> passes = pinTrack.passes(r.lat, r.lon);
+        if (passes.isEmpty()) {
+            Toast.makeText(this, "That place is not on this drive: the road you drove comes no closer than "
+                    + StageText.dist(pinTrack.closestM(r.lat, r.lon)) + ". Check the numbers.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        Track.Pass use = passes.get(0);
+        if (pinActive == 1) {
+            for (Track.Pass q : passes) {
+                if (q.s > pinS[0]) {
+                    use = q;
+                    break;
+                }
+            }
+        }
+        pinS[pinActive] = use.s;
+        pinMoved();
+        if (use.offsetM > PinBuilder.NOTE_OFFSET_M) {
+            setNotice("That place is " + StageText.dist(use.offsetM) + " from the road you drove. The pin is put on the road, at the nearest point.");
+        }
+    }
+
+    private void onPinSave() {
+        if (!canStartSomething() || pinTrack == null) return;
+        saveForms();
+        final long now = System.currentTimeMillis();
+        final Plan plan = stageId.length() > 0 ? store.loadPlan(stageId) : null;
+        final String id = plan != null ? plan.id : store.newId(now);
+        final String name = pinNameText.trim().length() > 0 ? pinNameText : plan != null ? plan.name() : defaultName();
+        final PinBuilder.Result res;
+        try {
+            res = PinBuilder.build(id, name, now, pinTrack, PinBuilder.Pin.atPosition(pinS[0]), PinBuilder.Pin.atPosition(pinS[1]));
+        } catch (PinBuilder.Refused e) {
+            pinOk = false;
+            tvPinCheck.setText(e.getMessage());
+            tvPinCheck.setTextColor(AMBER);
+            enable(btnPinSave, false);
+            return;
+        }
+        try {
+            store.save(res.stage);
+        } catch (java.io.IOException e) {
+            setNotice("Could not save the stage (is the phone full?).");
+            return;
+        }
+        final Stage stage = res.stage;
+        final File file = pinFile;
+        final Uri uri = pinUri;
+        final String csvName = pinSource;
+        final android.content.Context app = getApplicationContext();
+        runJob("Saving the stage...", new Callable<String>() {
+            @Override public String call() {
+                final String head = "Saved " + stage.name() + " (" + StageText.dist(stage.lengthM()) + "). ";
+                try {
+                    final StageRescore.Report rep;
+                    if (file != null) {
+                        rep = StageRescore.scoreFiles(store, stage, Collections.singletonList(file), null);
+                    } else {
+                        final java.io.InputStream in = uri == null ? null : app.getContentResolver().openInputStream(uri);
+                        if (in == null) throw new java.io.IOException("no stream");
+                        rep = StageRescore.scoreStream(store, stage, in, csvName);
+                    }
+                    return head + rep.text();
+                } catch (java.io.IOException e) {
+                    return head + "The drive could not be read again to score it. Use Score a recording file on the stage page.";
+                } catch (RuntimeException e) {
+                    return head + "The drive could not be read again to score it. Use Score a recording file on the stage page.";
+                }
+            }
+        }, new Runnable() {
+            @Override public void run() { go(DETAIL, stage.id, ""); }
+        });
+    }
+
     // ------------------------------------------------------------------ starting things
 
     private boolean canStartSomething() {
@@ -962,6 +1757,11 @@ public class StagesActivity extends Activity {
     // ------------------------------------------------------------------ jobs on a worker thread
 
     private void runJob(String startText, final Callable<String> work) {
+        runJob(startText, work, null);
+    }
+
+    /** @param after run on the screen's thread when the job has ended, before its result is shown (null for nothing) */
+    private void runJob(String startText, final Callable<String> work, final Runnable after) {
         if (jobRunning) return;
         jobRunning = true;
         setNotice(startText);
@@ -979,7 +1779,8 @@ public class StagesActivity extends Activity {
                     @Override public void run() {
                         jobRunning = false;
                         dataVersion++;
-                        setNotice(r);
+                        if (after != null) after.run();
+                        if (r.length() > 0 || after == null) setNotice(r);
                     }
                 });
             }
@@ -1074,6 +1875,8 @@ public class StagesActivity extends Activity {
                     return StageExporter.restore(app, uri, store, System.currentTimeMillis());
                 }
             });
+        } else if (code == REQ_PIN_FILE) {
+            loadDrive(null, uri);
         } else if (code == REQ_SCORE_FILE) {
             final Stage st = store.load(stageId);
             if (st == null) return;

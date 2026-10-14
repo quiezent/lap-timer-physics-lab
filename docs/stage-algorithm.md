@@ -6,6 +6,7 @@ and found no disagreement with the app. It did have to guess how to read this pa
 Anyone building the iPhone version should start here, and compare their output with the fixtures in [`../analysis/stage_fixtures`](../analysis/stage_fixtures).
 
 The plain-words version is [`stages.md`](stages.md); the file formats are [`stage-format.md`](stage-format.md); the session CSV is [`log-format.md`](log-format.md).
+Release 1.5 adds a second way to make a stage, for roads where there is nowhere safe to park at the ends: put two **pins** on an ordinary recording of the drive. It is section 11 below; sections 5 to 8 (following a run, comparing) apply to both kinds of stage unchanged.
 The Android classes that implement each section are named in brackets, only so a reader knows where to look; nothing here depends on them.
 
 Conventions: times are seconds as 64-bit floats; distances metres; angles degrees unless a function says radians; compass bearings run clockwise from north in `[0, 360)`.
@@ -212,4 +213,123 @@ On the real Sepang recording (a circuit, not a stage, but the code does not know
   the 16-step scan (an 8-step scan passes); skipping a vertex with `hAcc > 30` (10 passes); replacing against appending the finish vertex within 3 m; the 0.01 m margin on the route; the heading penalty and its 3 m/s threshold; the 40 m window behind `sNow`; the 60 m "lost" limit; `sNow` never decreasing; the 70 % and 10 s finish rules;
   the 5 s of POST (3 s and 30 s pass); the 300 s false-start limit; the 3 s "near" rule (2 s and 10 s pass); the last profile knot; the worst-`hAcc` start value; skipping the first fix; the 12-section rule; the 12 m/s speed for an unknown line speed; the 3 m/s floor in σ.
   The Java tests do exercise many of these directly (for instance the false start, the dropout, the heading, the 70 % rule), but then only against my reading of the page. Fixtures for each, so that a second implementation is held to them too, are on the list in [`roadmap.md`](roadmap.md).
+- `python analysis/pin_compare.py selftest` does the same for **section 11** (the pins, release 1.5). It is a third body of code, written by another instance of the model from 11.1 to 11.8 of this page alone: it never opened the Java. It recomputes every expected result in [`../analysis/stage_fixtures/pins`](../analysis/stage_fixtures/pins) (391 texts, of which 315 are read as places and 76 refused; the track of 30 recordings; 60 places snapped; 115 pairs of pins, 62 of which make a stage; the 62 stage files; the 62 first runs) and runs 20 groups of checks of its own (the grammar of 11.8 on 313 table rows, 26 980 round trips and 105 000 random texts; every refusal; the guard on 300 random roads; and so on): 26 groups in about 3 seconds.
+  It agrees with the Java everywhere. It is the second version of that file: the first was written before the hole and break rules and the strict reader of 11.8 existed, and differed from the regenerated files in 17 cases and 2 files, all of them its own out-of-date code. It had to choose a reading in 17 places where this page could be read two ways; those that mattered are written out above (the times as doubles, what "makes a stage" means in 11.3, the unit of a gap's position), the others agree with what the Java does.
+- **What that does not prove, for section 11.** The same limits as above: the same model read my page, so a mistake I make on both sides passes. And again the fixtures were tested by breaking the second implementation: 422 one-line breakages (381 different ones); the fixtures noticed 279 of the 422 (251 of the 381). Of the 143 they missed, 109 are rules of this page that a real input can show and **no fixture exercises**, 14 would need a computed floating-point number to land exactly on a constant (not portable between languages, so no fixture can hold them), 12 change nothing, and 8 are the sentences of 11.7, which are in no file by design.
+  The 109 are the exact limits of the hole rule (3.0 s, and whether the ends of a hole count); the order of the rules when two fail together; an infinite position; the pair order, and what happens when the guard fails on the first pair; the windows and widths of the guard; which link pattern wins when a text has several; and, in the reader of 11.8, eight white-space characters (U+2000 to U+2008 but not all), four look-alikes that must not be white space, the length counted in UTF-16 units, Unicode against ASCII case, and the exact order of the link tests.
+  The whole list, with how to make a fixture for each, is [`../analysis/stage_fixtures/pins/GAPS.md`](../analysis/stage_fixtures/pins/GAPS.md). The Java tests (`PN.*`) do exercise most of them directly (the 3.0 s limit, the edges of a hole to within half a metre, the 300 s and 100 m of a break, the 20 m and 300 m limits), but then only against my reading of the page. As a first step I ran the 241 texts of the second implementation's own table for 11.8 through the app's reader: **0 differences**.
 - A page like this can still be wrong in a way both implementations share; the real test is a stage driven twice on a real road, with a stopwatch or a second device at the lines. That has not been done yet.
+
+## 11. Making a stage from pins on a recording (`Track`, `PinBuilder`, `Coords`; release 1.5)
+
+Section 4 makes a stage from a drive that starts and ends parked on the two marks. On a public road there is often nowhere safe to park at either end, so 1.5 can make **the same kind of stage** another way: take an ordinary recording of a drive along the road, and put two **pins** on it, one where the stage starts and one where it ends.
+The result is a stage file exactly like the ones of section 4 (same format, same two lines of 50 m, same route, same timing and comparison); only the way the lines are placed is different. Nothing in sections 5 to 8 changes.
+
+A pin is given in one of two ways: by **position** (a distance along the track, from the slider on the pin screen) or by **coordinate** (a latitude and longitude, typed or pasted from a map). A coordinate is first turned into a position (11.3), so everything after that is the same.
+This section is written, like the others, so that it can be re-implemented without the Java. The categories of refusal are fixed (the words are the app's own); the numbers and the file are exact.
+
+### 11.1 The track of a recording (`Track`)
+
+The input is a recording's usable fixes, sorted and de-duplicated as in section 1.
+
+1. A fix is **kept** unless `hAcc > 30` (an unknown `hAcc`, negative, is kept) or its speed is known and under 1.0 m/s, i.e. `0 <= speed < 1.0` (an unknown speed, negative, is kept). A parked or crawling phone reports a position that is mostly noise, and it would only add zigzags to the road.
+2. The **vertices** of the track: the first kept fix is vertex 0; every later kept fix becomes a vertex if it is **at least 3 m** (straight line, measured in the track frame of step 3) from the last vertex; a fix less than 3.0 m from it is left out.
+   Each vertex remembers its fix's `t`, `lat`, `lon`.
+3. The **track frame** is the flat frame of section 2 with its origin at vertex 0. `s[0] = 0` and `s[i] = s[i-1] + hypot(...)` between consecutive vertices; `L = s[last]` is the length of the track. `pointAt(d)` is the point at distance `d` along the polyline (`d` clamped into `[0, L]`; the same as the route's, section 4 step 5).
+4. If there are fewer than 3 vertices the recording is *refused* (category `no_drive`: "there is no drive in this recording").
+5. The **holes** of the recording. They are found on **all** the usable fixes (sorted and de-duplicated as in section 1, whether kept in step 1 or not), not on the vertices: every pair of consecutive fixes whose times differ by **more than 3.0 s** is a hole. A hole remembers its two times `t0 < t1` and the straight distance between its two fixes, in the track frame.
+   (3.0 s is the scorer's own limit: section 6 finds a line crossing only between two fixes at most 3 s apart, so a line in a hole could not be timed. A long stand is not a hole: its fixes are left out of the track by step 1, but they keep arriving every second.)
+   Times are the `t` of section 1, doubles in seconds (`t_us / 1e6`), and every comparison of a time with a limit (here 3.0 s, in 11.3 300 s) is made on those doubles. A difference that equals a limit exactly on paper can come out a few units in the last place either side of it in floating point, so a recording whose times are not whole seconds cannot show a portable result *at* a limit; the fixtures that sit on 3.0 s or 300 s use whole seconds, where the difference is exact.
+6. **`timeAt(d)`**, for `d` clamped into `[0, L]`, is the time of the point at distance `d` along the track: on its segment `j` (`s[j] <= d <= s[j+1]`), `t[j] + (d - s[j]) / (s[j+1] - s[j]) * (t[j+1] - t[j])`.
+
+### 11.2 Snapping a coordinate to the track (`Track.passes`)
+
+The coordinate `(lat, lon)` is placed in the track frame as `(px, py)`. For each segment `j` of the track the nearest point and its distance `d_j` are found as in section 5 (clamped projection, no heading). The segments with `d_j <= 60` (the **snap limit**, 60 m) are grouped into **passes**: a pass is a maximal run of consecutive segments that all satisfy it.
+A pass is **at** the nearest point of its best segment, the one with the smallest `d_j` (the first one on a tie): its position is `s[j] + f * length(j)` with `f` the clamped projection fraction, and its **offset** is that `d_j`. Passes are listed in order of position.
+Then the passes **much further from the place than the nearest one are dropped**: only those whose offset is at most the smallest offset plus 10 m are kept. (A place on one leg of a hairpin is also within 60 m of the legs above and below it, and a place on one carriageway is within 60 m of the other; those are other roads, and the driver meant the nearest. The same road driven twice, or on every lap, gives offsets within a few metres of each other and all passes stay.)
+If there is no pass at all, the coordinate is *refused* (category `no_pass_start` or `no_pass_finish`; the sentence gives the distance of the closest approach, `min d_j`, rounded to whole metres).
+
+(Why 60 m: a point picked on a map is rarely exactly on the line the car drove. It may be on the other carriageway, or beside the road. The line is then placed on the road the car actually drove, at the nearest point; the offset is reported, and the driver can see it on the map.)
+
+### 11.3 The two positions and the rules they must meet
+
+Let `a` be the start position and `b` the finish position (distances along the track, `L` its length). **By position** they are given as they are. **By coordinate**, let `A` be the passes of the start coordinate and `B` the passes of the finish coordinate: take the **first pair** `(a, b)`, in order of `a` and then of `b`, with `b > a`, that meets the rules 2 to 7 below. (If the road is driven twice, the first pair that meets rules 2 to 7 is used: a pass in a hole, or a pair that joins two drives, is skipped for the next. The guard of 11.6 is not one of these rules: it is made once, on the pair chosen, and if it fails no other pair is tried.)
+If there is none, the pins are refused: with `wrong_way` if no pass of the finish lies after a pass of the start; else with the category of the first rule failed by the first pair with `b > a` (the pairs in the same order).
+A pin given by position is a single candidate with that position. The two pins need not be given the same way (the start by position and the finish by coordinate is fine).
+**The order of the checks.** First the recording: no drive (11.1 step 4) is refused as `no_drive` whatever the pins are. Then the **start pin**: a position that is not a finite number (NaN, or plus or minus infinity) is refused as `near_end`; a coordinate with no pass (11.2) is refused as `no_pass_start`. Then the **finish pin** in the same way (`near_end`, `no_pass_finish`): so a start that is off the drive, or not a number, is reported before anything about the finish. Only then the pairs.
+
+The rules, checked in this order; the first to fail gives the category:
+
+1. `b > a`. Else `wrong_way`: "the finish comes before the start on this drive: it was driven the other way round".
+2. `a >= 20` and `b <= L - 20`. Else `near_end`: the recording must show the car arriving at the start line and leaving the finish line (a line cannot be crossed if there is no fix before it), so there must be at least 20 m of track before the start and 20 m after the finish.
+3. `b - a >= 300`. Else `too_short` (the same 300 m as section 4).
+4. The straight distance between `pointAt(a)` and `pointAt(b)` is at least 150 m. Else `loop` (the same 150 m as section 4).
+5. The start pin is not in a hole: there is no hole with `t0 <= timeAt(a) <= t1` (the ends count). Else `hole_start`: "the GPS gave no position for N s around the start pin, so the phone could not see the car cross a line there" (`N` is the length of the longest such hole).
+6. The same for the finish pin, with `timeAt(b)`. Else `hole_finish`.
+7. There is no **break** between the pins: no hole with `t1 - t0 > 300`, a distance between its two fixes of more than 100 m, `t1 > timeAt(a)` and `t0 < timeAt(b)`. Else `break`: "between the two pins the recording has a break of N s, with the car D apart across it: the GPS was lost, or this is two drives. A stage has to be one continuous drive."
+   A break is judged on the two fixes either side of the hole and not on the road between them, and both numbers must be exceeded: a wait of exactly 300 s is not a break, nor is a car that is 100 m or less from where it was (a phone that slept while the car stood still is a hole of any length at one place). A hole shorter than that between the pins is no problem: the lines are crossed on good fixes, and the scorer's own quality figure (section 6) says how well the run in between was followed.
+
+### 11.4 The lines
+
+The centre of the start line is `pa = pointAt(a)` and of the finish line `pb = pointAt(b)`: **the lines go exactly where the pins are**, with no shift along the road (section 4 shifted them 20 m in because the car was parked on the marks; a car that is driving past a pin needs no such margin).
+Each line is perpendicular to the direction of the track over the 40 m around it: the start line's bearing is `bearing(pointAt(a + 20) - pointAt(a - 20))` and the finish line's is `bearing(pointAt(b + 20) - pointAt(b - 20))` (vectors in the track frame, `bearing` as in section 2; rule 2 means the distances never need clamping). Both lines have `half = 25`.
+
+### 11.5 The stage
+
+- The **start mark** is the coordinate the driver gave, or, for a pin given by position, the latitude and longitude of `pa` (the track frame's inverse, section 2). The **finish mark** likewise with `pb`.
+- The **stage frame** is the frame of section 2 with its origin at the start mark, unrounded.
+- The **route** is `pa`, then every vertex `i` with `a + 0.01 < s[i] < b - 0.01`, then `pb`. Every point is placed in the stage frame **from its latitude and longitude**: a vertex from its fix's, `pa` and `pb` from the track frame's inverse of their coordinates. The route's own distances are then computed in the stage frame, as in section 4 step 7, and its length is the stage's `length_m`.
+- The gates are the two lines of 11.4 with their centres placed in the stage frame in the same way.
+- The stage is written as in section 4 (origin and marks to 7 decimals, gates and route to 3), and **the app scores against the stage as read back from its file**.
+
+### 11.6 The guard against a road that crosses a line twice
+
+The 1.4 method has no check for a road that comes back over its own start or finish line (a loop, or hairpins stacked closer than a line is wide), and section 9 shows what happens when it does. For a stage made from pins, the app checks the finished stage and refuses it if it would be mistimed. The check is made **only on the pair chosen in 11.3**: if it fails, the pins are refused with its category and no other pair is tried. It is made on the numbers as built, before they are rounded for the file (a millimetre is not a decision), the start gate first.
+In the stage frame, with the stage's gates and route, a **forward crossing of a gate** by the route is a segment `(q[k], q[k+1])` of the route with `along(q[k]) < 0 <= along(q[k+1])`, where the line's width for this check is `35` (the gate's 25 m plus 10 m for GPS noise): `|across|` at the crossing point, found by linear interpolation along the segment, must be at most 35.
+`u` is the route distance of the crossing (the segment's start distance plus the interpolated fraction of its length) and `R` the route's length.
+
+- **`guard_start`**: the start gate has a forward crossing with `30 < u <= 300`. (A run would restart its clock there; section 6, "false start".)
+- **`guard_finish`**: the finish gate has a forward crossing with `0.7 * R <= u < R - 30`. (A run would end there; section 6, the finish rule.)
+
+The words: "the road crosses the start/finish line again `u` m into the stage (a loop or tight bends close to it). A run would be timed wrongly. Move that pin to a straighter place."
+
+### 11.7 What the builder also says (not part of any file)
+
+Plain sentences for the screen; their wording is the app's, and a second implementation need not reproduce them.
+
+- *Offsets.* For a coordinate pin: how far from the road the coordinate was, if it was more than 5 m.
+- *Which pass.* If a coordinate has more than one pass in the recording, which one was used.
+- *Gaps.* A **gap** is a segment of the track between the pins, between two consecutive vertices, with a time difference over 20 s and a length over 100 m (GPS was lost, in a tunnel, say): the road is drawn there as a straight line, so later drives are placed on it less well. Each gap is reported with its position: the distance along the track of the recording, as a pin position is, at which the segment begins (this can be before the start pin, when the pin cuts the segment). (A gap is a note, not a refusal, and it is not the same as a hole in 11.1: a gap is judged on the vertices and so can contain a long stand, a hole is judged on all the fixes.)
+
+### 11.8 Reading coordinates (`Coords`)
+
+A coordinate is taken from text the driver typed or pasted. The text is **refused** with a sentence, or gives `(lat, lon)` in degrees.
+
+**Three definitions used below.** *White space* is exactly these 28 characters: U+0009 to U+000D, U+001C to U+0020, U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F and U+3000. (U+0085, U+180E, U+200B and U+FEFF are **not** white space: the phone's own idea of it differs between versions of Android.) *Digits* are the ASCII digits `0` to `9` only (an Arabic-Indic or full-width digit is just a character that cannot be read). *Case* is ASCII only: `A` to `Z` are the same as `a` to `z`, and no other character has a case.
+White space is trimmed from both ends first; a text that is then empty, or longer than 4000 characters (UTF-16 code units), is refused. Then, in this order:
+
+1. **A map link**: the text contains `://`, or starts with `www.`, or contains `google.` followed later by `/maps` (all matched without regard to case). If it contains `goo.gl/` it is refused as a short link ("a short link needs the internet to open: open it in Google Maps and copy the numbers under the place's name instead"). Otherwise the first of these that matches wins, and **the match is taken as it is**: if its numbers are out of range (rule 4), the text is refused and the later patterns are not tried.
+   `!3d<lat>!4d<lon>` (the place itself); then `@<lat>,<lon>` (the middle of the map); then `[?&](q|ll|query|center)=<lat>,<lon>` (without regard to case; the comma may be written `%2C` or `%2c`; if the text has several, the leftmost); then `/place/<lat>,<lon>`. Each number is `-?\d+(\.\d+)?`, with nothing between the numbers and the comma (no space). No match: refused.
+2. **A `geo:` link**: the text starts with `geo:` (any case). Take what follows, cut it at the first `?` or `;` if there is one, and split it at every comma. There must be **two or three** parts, and each part must be a number `-?\d+(\.\d+)?` and nothing else: no white space and no `+`, and an empty part (a comma at the end, or two commas in a row) is not a number. They are latitude, longitude and an altitude, which is checked but ignored. Anything else is refused.
+3. **Plain text.** Commas and semicolons are separators, like white space. A comma is never a decimal mark: `3,1234 101,5678` has four numbers and is refused, not read as 3.1234 101.5678. The text is cut into **tokens**: numbers (`[+-]?\d+(\.\d*)?` or `[+-]?\.\d+`; the minus may also be U+2212), the letters `N S E W` in either case, and the marks `°` `º` `˚` (degrees), `'` `’` `′` (minutes) and `"` `”` `″` (seconds), which are skipped; any other character is refused. A number that runs straight into the next one is a typing mistake and the text is refused: a number token **immediately followed** by `.`, `+`, `-` or U+2212 (`3.1234.5`, `3.1234-101.5678`). A `+` or `-` that does not begin a number (`3.1234 + 101.5678`) is a character that cannot be read.
+   - *With letters.* Exactly two letters are expected, one of `N S` and one of `E W`. A coordinate is a letter and the numbers next to it: if the first token is a letter, each letter starts a coordinate (`N 3.1234 E 101.5678`); otherwise each letter ends one (`3.1234 N, 101.5678 E`, `3°08'20.4"N 101°41'12.7"E`), and numbers after the last letter are refused. The latitude is the `N S` coordinate and the longitude the `E W` one, whichever comes first.
+     A coordinate is 1, 2 or 3 numbers: degrees; degrees and minutes; degrees, minutes and seconds (with or without the marks). Its value is `d + m/60 + s/3600`; minutes and seconds must be under 60; when there is more than one number, the degrees (and the minutes, if there are three) must be whole numbers **by value** (`3.0` is whole) and unsigned. `S` and `W` make the value negative; a number that carries its own sign next to a letter is refused.
+   - *Without letters.* Exactly two numbers, each possibly followed by a degree mark: the first is the latitude, the second the longitude, signed.
+   - Anything else is refused ("I found N numbers", say).
+4. **Range.** `|lat| <= 90`, `|lon| <= 180`; `(0, 0)` is refused (it is what a failed look-up returns). If the first number of a plain pair is outside the latitude range and the second is not, the sentence says "did you swap them?"; the numbers are never swapped for the driver.
+
+The text is shown back as `lat, lon` to 6 decimals (about 0.1 m).
+
+### 11.9 The first drive of a planned stage (live)
+
+**Status: not built.** Release 1.5 makes a stage from a plan in the other way, from a recording the driver has already made (11.1 to 11.8); arming a plan, so that its first drive records by itself and builds the stage, is release 1.6. This part is written first so that it can be checked before it is built, and, unlike 11.1 to 11.8, **no second implementation has read it yet**.
+
+A **planned stage** is two coordinates and a name, and no road yet. It is armed like a stage. The first drive records by itself and **teaches the app the road**; from the second drive on it is an ordinary stage.
+
+- *Waiting.* As for a stage (section 8): GPS only, and a recording starts when the car is moving (`speed >= 2`) within 400 m of the **start pin**; the fix before it is handed to the recording; after a drive or an approach that came to nothing it will not trigger again until the car has been more than 600 m from the start pin.
+- *Following.* In the flat frame at the start pin, for each fix `dS` and `dF` are its distances to the start pin and the finish pin. The **start is passed** at the first fix where the smallest `dS` so far is at most 60 and `dS >= (that smallest) + 30`. After the start has been passed, the **finish is passed** at the first fix where the smallest `dF` among the fixes after the start was passed is at most 60 and `dF >= (that smallest) + 30`.
+  (The 30 m means the car has moved at least 30 m along the road past the nearest point, so the recording has the 20 m of track after the pin that rule 2 of 11.3 needs.) The recording stops at that fix.
+- *Failsafes* (as in section 8): before the start has been passed, the recording is thrown away (the low tone) if 300 s go by from its first fix, or the car is more than 700 m from the start pin. After the start has been passed, the drive is given up (the recording is kept, the low tone sounds, the plan stays) if the car has been stopped (speed under 0.55) for 1200 s, or the drive has lasted more than `clamp(2 D / 2.5 + 900, 1800, 21600)` s from the start pass, where `D` is the straight distance between the two pins.
+- *Building.* When the finish has been passed, the stage is made from **the whole recording** with the two coordinates, exactly as in 11.1 to 11.6. If it is refused, the stage is not made: the recording is kept, the plan stays, and the app says why. If it is made, it is saved under the plan's id (the plan becomes the stage), the recording is scored against it like any other (the drive becomes the stage's first run), and the phone arms itself for the new stage.
+- *The screen rule.* The result is shown only when the car has stopped, like every run (section 8).
+

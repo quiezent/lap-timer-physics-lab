@@ -16,8 +16,8 @@ permissions:
 
 jobs:
   android-recorder-and-lap-timer:
-    # 324 checks against fakes of the Android classes (315 without the real log); needs only a JDK. The real Sepang log is replayed through
-    # the lap timer and the stage code.
+    # 435 checks against fakes of the Android classes (422 without the real log); needs only a JDK. The real Sepang log is replayed through
+    # the lap timer, the stage code and the pin code.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,8 +47,9 @@ jobs:
 
   stages-second-implementation:
     # The stage method written a second time from docs/stage-algorithm.md alone (analysis/stage_compare.py) must reproduce every expected
-    # result in analysis/stage_fixtures, and the stage simulation must still run. stage_compare.py needs only the standard library;
-    # the simulation needs numpy.
+    # result in analysis/stage_fixtures, the pin method of section 11 (analysis/pin_compare.py, release 1.5) every expected result in
+    # analysis/stage_fixtures/pins, and the stage simulation must still run. The two comparers need only the standard library; the
+    # simulation needs numpy.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -59,5 +60,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: Second implementation against the fixtures
         run: python analysis/stage_compare.py selftest
+      - name: Pin method, second implementation against the fixtures
+        run: python analysis/pin_compare.py selftest
       - name: Stage simulation, a tenth of the runs
         run: python sim/simulate_stage.py --quick

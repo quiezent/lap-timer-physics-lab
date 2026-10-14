@@ -245,7 +245,7 @@ final class Recorder implements SensorEventListener, LocationListener {
 
             try {
                 StringBuilder h = new StringBuilder(1024);
-                h.append("# TrackLogger 1.4 (raw phone-frame log; process offline with analyze.py)\n");
+                h.append("# TrackLogger 1.5 (raw phone-frame log; process offline with analyze.py)\n");
                 h.append("# device,").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append('\n');
                 h.append("# android,").append(Build.VERSION.RELEASE).append(",sdk,").append(Build.VERSION.SDK_INT).append('\n');
                 startUtcMs = System.currentTimeMillis();

@@ -32,7 +32,7 @@ java -cp "$D8CP" com.android.tools.r8.D8 --release --min-api 29 --lib "$ANDROID_
 echo "[3/5] aapt2: manifest + resources"
 "$AAPT2" compile --dir "$HERE/res" -o "$OUT/compiled/res.zip"
 "$AAPT2" link -o "$OUT/base.apk" -I "$ANDROID_JAR" --manifest "$HERE/AndroidManifest.xml" \
-     --min-sdk-version 29 --target-sdk-version 33 --version-code 5 --version-name 1.4 "$OUT/compiled/res.zip"
+     --min-sdk-version 29 --target-sdk-version 33 --version-code 6 --version-name 1.5 "$OUT/compiled/res.zip"
 
 echo "[4/5] add classes.dex"
 cp "$OUT/base.apk" "$OUT/unsigned.apk"
